@@ -152,6 +152,17 @@ export function NextDrawCard({ className }: { className?: string }) {
   const { round } = useActiveRound();
   const countdown = useRoundCountdown(round);
 
+  /*
+   * Whether this wallet is in the round — answered without decrypting anything.
+   *
+   * `isParticipant` is a public boolean: registration is visible, positions are not. So the
+   * card can state plainly that you are in the draw, which is the question a saver actually
+   * has after depositing, and which nothing here answered before. The mode stays a ciphertext
+   * and still needs a signature to read, so the wording below promises registration and not a
+   * mode the app cannot see.
+   */
+  const { isParticipant } = usePositionHandles();
+
   if (!round) {
     return (
       <Card className={cn("p-7 sm:p-8", className)}>
@@ -195,6 +206,36 @@ export function NextDrawCard({ className }: { className?: string }) {
           progress.headline
         )}
       </p>
+
+      {isOpen ? (
+        <p className="mt-2.5 text-[13px] leading-relaxed text-[var(--color-tertiary)]">
+          {isParticipant ? (
+            <>
+              <span className="text-[var(--color-accent)]">You are in this round.</span> Your
+              yield funds the prize pool unless you have opted out to Steady — check{" "}
+              <Link
+                href="/app/mode"
+                className="underline decoration-[var(--color-quaternary)] underline-offset-[3px] transition-colors hover:text-[var(--color-accent)]"
+              >
+                Yield mode
+              </Link>{" "}
+              to see which you are on. Results appear under{" "}
+              <Link
+                href="/app/rewards"
+                className="underline decoration-[var(--color-quaternary)] underline-offset-[3px] transition-colors hover:text-[var(--color-accent)]"
+              >
+                Rewards
+              </Link>{" "}
+              once the round settles.
+            </>
+          ) : (
+            <>
+              You are not in this round yet. Depositing enters you immediately — weight is
+              balance multiplied by time held, so entering earlier earns more of the draw.
+            </>
+          )}
+        </p>
+      ) : null}
 
       {/*
         What is happening right now, while it happens.
