@@ -32,6 +32,29 @@ const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY ?? "";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? "";
 
 /**
+ * The keeper's key, optionally.
+ *
+ * Round advancement is permissionless, so the account that drives it needs gas and nothing
+ * else — no role, no ownership, no access to the reserve. Keeping it separate from the
+ * deployer is the entire point: the deployer holds ADMIN_ROLE and the reserve, and a key that
+ * runs unattended on a schedule should be worthless if it leaks.
+ *
+ * Set it and the `keeper` task signs with it. Leave it unset and the task falls back to the
+ * deployer, which still works — every call it makes is open to anyone — but is not what you
+ * want running on a cron.
+ *
+ * It is listed second so the deployer stays `getSigners()[0]` and every admin task keeps
+ * signing with the key it always did.
+ */
+const KEEPER_PRIVATE_KEY = process.env.KEEPER_PRIVATE_KEY ?? "";
+
+const SEPOLIA_ACCOUNTS = [DEPLOYER_PRIVATE_KEY, KEEPER_PRIVATE_KEY].filter(
+  // Hardhat rejects a duplicate account, and pointing both variables at one key is an easy
+  // mistake to make when trying this out.
+  (key, index, all) => key !== "" && all.indexOf(key) === index,
+);
+
+/**
  * Sable uses a deterministic mnemonic on the in-process Hardhat network so that
  * FHEVM mock coprocessor state is reproducible between runs.
  */
@@ -65,7 +88,7 @@ const config: HardhatUserConfig = {
     sepolia: {
       url: SEPOLIA_RPC_URL,
       chainId: 11155111,
-      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
+      accounts: SEPOLIA_ACCOUNTS,
     },
   },
   etherscan: {

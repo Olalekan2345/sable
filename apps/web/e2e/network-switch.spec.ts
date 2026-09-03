@@ -113,12 +113,27 @@ const moveToMainnet = (page: Page) =>
  * Both name the destination and both reach the wallet, which is the whole promise — so the
  * assertion takes either rather than encoding which deployment it is running against.
  */
-const fixNetwork = (page: Page) =>
-  page
-    .locator('w3m-modal[class~="open"]')
-    .getByText(/sepolia/i)
-    .first()
-    .or(page.getByRole("button", { name: /switch (network|to sepolia)/i }).first());
+const appkitModal = (page: Page) => page.locator('w3m-modal[class~="open"]');
+const appkitFix = (page: Page) => appkitModal(page).getByText(/sepolia/i).first();
+const nativeFix = (page: Page) =>
+  page.getByRole("button", { name: /switch (network|to sepolia)/i }).first();
+
+const fixNetwork = (page: Page) => appkitFix(page).or(nativeFix(page)).first();
+
+/**
+ * Presses whichever affordance is actually on screen.
+ *
+ * Not `fixNetwork(page).click()`: `or` resolves in DOM order, so with AppKit configured it can
+ * select the banner button — which sits underneath AppKit's modal and would reject the click
+ * as intercepted. Asking which one is showing is the honest version of that decision.
+ */
+async function pressFix(page: Page) {
+  if (await appkitModal(page).isVisible()) {
+    await appkitFix(page).click();
+    return;
+  }
+  await nativeFix(page).click();
+}
 
 test.describe("Network switching", () => {
   /*
@@ -147,9 +162,8 @@ test.describe("Network switching", () => {
 
     await moveToMainnet(page);
 
-    const fix = fixNetwork(page);
-    await expect(fix).toBeVisible({ timeout: 30000 });
-    await fix.click();
+    await expect(fixNetwork(page)).toBeVisible({ timeout: 30000 });
+    await pressFix(page);
 
     // The point of the whole exercise: the wallet is asked, in its own words, to move to the
     // chain Sable runs on. Nothing here is the app pretending to have switched on its behalf.

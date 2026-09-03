@@ -215,12 +215,39 @@ task("keeper", "Advances the round state machine (permissionless)")
   .addOptionalParam("maxPasses", "Transitions to perform before exiting", 8, types.int)
   .setAction(async (args, hre) => {
     const { ethers } = hre;
-    const sable = await vault(hre);
-    const [signer] = await ethers.getSigners();
+    const signers = await ethers.getSigners();
+
+    /*
+     * Sign with the keeper key when one is configured, and say which account is being used.
+     *
+     * Matched on the derived address rather than a position in the array, because the array is
+     * whatever `SEPOLIA_ACCOUNTS` assembled and an index would quietly sign as the wrong
+     * account the moment that changed. Falling back to the deployer is deliberate: every call
+     * this task makes is permissionless, so running it as the deployer is fine for a one-off.
+     * It is only a bad idea on a schedule, which is why the fallback is printed rather than
+     * left for someone to infer.
+     */
+    let signer = signers[0];
+    let usingKeeperKey = false;
+    const configured = process.env.KEEPER_PRIVATE_KEY;
+    if (configured) {
+      const wanted = new ethers.Wallet(configured).address.toLowerCase();
+      const match = signers.find((s) => s.address.toLowerCase() === wanted);
+      if (match) {
+        signer = match;
+        usingKeeperKey = true;
+      }
+    }
+    if (!signer) {
+      throw new Error("No signer configured. Set KEEPER_PRIVATE_KEY or DEPLOYER_PRIVATE_KEY.");
+    }
+
+    const sable = (await vault(hre)).connect(signer) as Vault;
 
     const balance = await ethers.provider.getBalance(signer.address);
     console.log(`\nKeeper ${signer.address}`);
-    console.log(`  balance ${ethers.formatEther(balance)} ETH`);
+    console.log(`  key      ${usingKeeperKey ? "KEEPER_PRIVATE_KEY" : "DEPLOYER_PRIVATE_KEY (fallback)"}`);
+    console.log(`  balance  ${ethers.formatEther(balance)} ETH`);
     if (balance === 0n) throw new Error("Keeper has no ETH. Fund it before running.");
 
     if (Number(await sable.roundCount()) === 0) {

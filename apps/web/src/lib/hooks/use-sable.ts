@@ -9,7 +9,7 @@ import {
   yieldAdapterAbi,
 } from "@sable/config";
 import { useCallback } from "react";
-import { useAccount, useChainId, useConfig, useReadContract, useReadContracts, useSwitchChain } from "wagmi";
+import { useAccount, useConfig, useReadContract, useReadContracts, useSwitchChain } from "wagmi";
 import { getAccount } from "wagmi/actions";
 
 /**
@@ -55,11 +55,25 @@ export function useIsDeployed(): boolean {
  * state rather than left to a mysterious revert.
  */
 export function useNetworkGuard() {
-  const { isConnected } = useAccount();
-  const chainId = useChainId();
+  /*
+   * The chain read here is the *connection's*, not the config's.
+   *
+   * `useChainId()` returns wagmi's active chain, which is always one of the chains wagmi was
+   * configured with — and Sable configures exactly one. A wallet that moved to a chain not in
+   * that list therefore kept reporting Sepolia, `wrongNetwork` stayed false, and the banner
+   * never appeared. The guard only looked like it worked because Reown AppKit was raising its
+   * own prompt first; on a build with no WalletConnect project id, nothing surfaced the wrong
+   * network at all.
+   *
+   * `useAccount().chainId` is the chain the connector is actually on, configured or not, which
+   * is the question being asked.
+   */
+  const { isConnected, chainId } = useAccount();
   const { switchChain, isPending, error } = useSwitchChain();
 
-  const wrongNetwork = isConnected && chainId !== SABLE_CHAIN_ID;
+  // `chainId` is briefly undefined while a connection settles; that is not a wrong network,
+  // and treating it as one flashes the banner on every page load.
+  const wrongNetwork = isConnected && chainId !== undefined && chainId !== SABLE_CHAIN_ID;
 
   return {
     wrongNetwork,

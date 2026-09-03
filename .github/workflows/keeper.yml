@@ -93,10 +93,10 @@ jobs:
       - name: Advance
         working-directory: packages/contracts
         env:
-          # The deploy key is deliberately absent from this environment. Hardhat reads
-          # DEPLOYER_PRIVATE_KEY for the Sepolia signer, so the keeper's key is supplied
-          # under that name — the account it produces holds no role either way.
-          DEPLOYER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
+          # The deployer key is deliberately absent from this environment. Only the keeper key
+          # is provided, and the task signs with it by name — no role is required to advance a
+          # round, so this account can do nothing else.
+          KEEPER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
           # publicnode drops sockets partway through a run of transactions, which cost a
           # scheduled batch two thirds of its work. Override with a dedicated endpoint.
           SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
@@ -109,6 +109,6 @@ jobs:
         if: failure()
         working-directory: packages/contracts
         env:
-          DEPLOYER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
+          KEEPER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
           SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
         run: pnpm exec hardhat keeper --network sepolia
