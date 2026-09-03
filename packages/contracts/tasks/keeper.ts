@@ -102,6 +102,31 @@ task("rounds:schedule", "Configures a run of future rounds (admin)")
 type Vault = Awaited<ReturnType<typeof vault>>;
 
 /**
+ * Waits until a read reflects a write that has already been mined.
+ *
+ * A mined transaction is not the same as a node that will tell you about it. Public endpoints
+ * sit behind pools of replicas at different heights, so the read immediately after a write can
+ * be served by one that has not caught up — and the keeper, which decides what to do next
+ * entirely from chain state, then takes a branch based on the past.
+ *
+ * Not hypothetical: after opening a round, the next pass read `activeRoundId` as 0, concluded
+ * nothing was open, and tried to open the *following* round on top of it. That transaction was
+ * doomed, and the plugin surfaced it as an unrelated initialisation error — a long way from
+ * the actual cause.
+ *
+ * Polling the one value that was just changed is enough. Giving up quietly is deliberate:
+ * every step is idempotent against on-chain cursors, so the worst case is the next invocation
+ * doing what this one could not confirm.
+ */
+async function settle(sable: Vault, roundId: number, expectedState: number): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const state = Number((await sable.roundState(roundId)).state);
+    if (state === expectedState) return;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+}
+
+/**
  * Performs whatever transition is currently possible, and reports whether it did anything.
  *
  * Returning a boolean rather than looping internally is what lets the caller decide how far to
@@ -127,6 +152,7 @@ async function advance(sable: Vault, settleBatch: number): Promise<boolean> {
 
       console.log(`\nOpening round #${id} ...`);
       await (await sable.openRound(id)).wait();
+      await settle(sable, id, 2);
       console.log(`  open until ${stamp(config.closesAt)}`);
       return true;
     }
@@ -186,6 +212,7 @@ async function advance(sable: Vault, settleBatch: number): Promise<boolean> {
     console.log("  completing (resolving rollover) ...");
     const tx = await sable.completeRound(roundId);
     await tx.wait();
+    await settle(sable, roundId, 7);
     console.log(`  round #${roundId} complete — ${tx.hash}`);
     console.log(`  scored ${scored} participant(s)`);
   }
