@@ -1,8 +1,9 @@
 "use client";
 
-import { RoundState, addresses, formatCountdown } from "@sable/config";
+import { RoundState, addresses } from "@sable/config";
 import Link from "next/link";
 
+import { DrawCountdown } from "@/components/app/draw-countdown";
 import { ButtonLink } from "@/components/ui/button";
 import { ConfidentialValue, RevealButton } from "@/components/ui/confidential-value";
 import { Badge, Card, PrivacyNote } from "@/components/ui/primitives";
@@ -194,18 +195,15 @@ export function NextDrawCard({ className }: { className?: string }) {
         </Badge>
       </div>
 
-      <p className="mt-5 text-[15px] text-[var(--color-primary)]">
-        {isOpen && countdown !== null ? (
-          <>
-            Closes in{" "}
-            <span className="text-numeric font-semibold text-[var(--color-accent)]">
-              {formatCountdown(countdown)}
-            </span>
-          </>
-        ) : (
-          progress.headline
-        )}
-      </p>
+      {isOpen && countdown !== null ? (
+        <DrawCountdown
+          secondsRemaining={countdown}
+          opensAt={round.config.opensAt}
+          closesAt={round.config.closesAt}
+        />
+      ) : (
+        <p className="mt-5 text-[15px] text-[var(--color-primary)]">{progress.headline}</p>
+      )}
 
       {isOpen ? (
         <p className="mt-2.5 text-[13px] leading-relaxed text-[var(--color-tertiary)]">
