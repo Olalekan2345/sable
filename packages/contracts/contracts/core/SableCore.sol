@@ -277,10 +277,10 @@ abstract contract SableCore is SableAccessControl, ZamaEthereumConfig {
     /**
      * @dev Registers `account` on first interaction and initialises its ciphertexts.
      *
-     *      Mode defaults to Steady. That default is itself encrypted, so a wallet that has
-     *      never called `setMode` is indistinguishable on-chain from one that explicitly
-     *      chose Steady — which matters, because otherwise "has never set a mode" would be
-     *      a public signal.
+     *      Mode defaults to Lucky, so depositing is what enters a saver into the draw. That
+     *      default is itself encrypted, so a wallet that has never called `setMode` is
+     *      indistinguishable on-chain from one that explicitly chose Lucky — which matters,
+     *      because otherwise "has never set a mode" would be a public signal.
      */
     function _ensureRegistered(address account) internal {
         if (_participantSlot[account] != 0) return;

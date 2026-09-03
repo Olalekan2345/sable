@@ -59,7 +59,7 @@ Sable prevents this structurally:
 | Execution trace | `FHE.select` evaluates both branches unconditionally |
 | Gas cost | Identical for both modes |
 | Ticket allocation | A Steady saver gets an empty range — arithmetically ordinary |
-| Never having chosen | The default is stored encrypted, so it is indistinguishable from an explicit Steady |
+| Never having chosen | The default is Lucky, stored encrypted, so it is indistinguishable from an explicit Lucky |
 
 That last row matters more than it looks. If the default were an uninitialised handle, "has
 never set a mode" would itself be a public signal.
