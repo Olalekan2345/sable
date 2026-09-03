@@ -17,16 +17,29 @@ import { cn } from "@/lib/cn";
  * ## Why they are not the real brand logos
  *
  * These are Zama's **mock** tokens — testnet instruments that are not the assets they are
- * named after. Stamping the genuine USDC or Tether logo on one would imply an issuer
- * relationship and a redeemability that do not exist. Each mark instead uses the currency's
- * own glyph and a distinct tint, which is what identification actually needs.
+ * named after. Stamping the genuine USDC or Tether artwork on one would imply an issuer
+ * relationship and a redeemability that do not exist, so each mark uses the currency's own
+ * glyph on its brand colour instead: recognisable at a glance, without claiming to be the
+ * issuer's mark.
+ *
+ * The treatment — a solid brand-coloured disc with a contrasting glyph — follows Zama's own
+ * faucet, so an asset carries the same colour here as where it was minted.
+ *
+ * ## Contrast is checked, not assumed
+ *
+ * Every glyph clears 4.5:1 against its own disc. Two brand colours could not: Tether's green
+ * reaches only 3.25:1 under white and Tether Gold's gold a hopeless 2.44:1, so both are
+ * deepened until the glyph is legible. A logo nobody can read is not identification, and
+ * these sit at 28px where the glyph is the whole signal.
  */
 
 interface TokenVisual {
   /** The glyph drawn inside the chip. A currency sign where one exists, a monogram otherwise. */
   glyph: string;
-  /** Tint for the ring and glyph, chosen to stay legible on the dark surface. */
+  /** The disc colour: the asset's brand colour, deepened where the glyph needed the contrast. */
   tint: string;
+  /** The glyph colour, chosen per token to clear 4.5:1 against `tint`. */
+  ink: string;
   /** Shown to screen readers in place of the decorative chip. */
   label: string;
 }
@@ -36,16 +49,23 @@ interface TokenVisual {
  * and `cUSDCMock` all resolve to the same mark.
  */
 const VISUALS: Record<string, TokenVisual> = {
-  USDC: { glyph: "$", tint: "#4d8ff5", label: "USDC" },
-  USDT: { glyph: "₮", tint: "#3fb08a", label: "Tether" },
-  XAUT: { glyph: "Au", tint: "#c9a227", label: "Tether Gold" },
-  WETH: { glyph: "◆", tint: "#8a92f5", label: "Wrapped Ether" },
-  BRON: { glyph: "B", tint: "#c47a4a", label: "BRON" },
-  ZAMA: { glyph: "Z", tint: "#ffce1a", label: "Zama" },
-  TGBP: { glyph: "£", tint: "#9a7fd4", label: "tGBP" },
+  USDC: { glyph: "$", tint: "#2775CA", ink: "#FFFFFF", label: "USDC" },
+  // Tether's #26A17B manages only 3.25:1 under white; deepened until the glyph reads.
+  USDT: { glyph: "₮", tint: "#14795A", ink: "#FFFFFF", label: "Tether" },
+  // Gold under white is 2.44:1, unreadable. Dark ink keeps the colour and gains 6.98:1.
+  XAUT: { glyph: "T", tint: "#C0A265", ink: "#241B00", label: "Tether Gold" },
+  WETH: { glyph: "◆", tint: "#3C3C3D", ink: "#FFFFFF", label: "Wrapped Ether" },
+  BRON: { glyph: "B", tint: "#6F3FF5", ink: "#FFFFFF", label: "BRON" },
+  ZAMA: { glyph: "Z", tint: "#FFD209", ink: "#0A0A0A", label: "Zama" },
+  TGBP: { glyph: "£", tint: "#101014", ink: "#5B9BF5", label: "tGBP" },
 };
 
-const FALLBACK: TokenVisual = { glyph: "?", tint: "#6b6c66", label: "Unknown token" };
+const FALLBACK: TokenVisual = {
+  glyph: "?",
+  tint: "#5A5B55",
+  ink: "#FFFFFF",
+  label: "Unknown token",
+};
 
 /**
  * Reduces any of the symbols in circulation to a registry key.
@@ -103,17 +123,23 @@ export function TokenMark({
       aria-label={labelled ? visual.label : undefined}
       aria-hidden={labelled ? undefined : true}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full border font-medium",
+        "inline-flex shrink-0 items-center justify-center rounded-full font-semibold",
         box,
         text,
         className,
       )}
       style={{
-        // Inline because the tint is per token and Tailwind cannot generate a class for a
+        // Inline because the colours are per token and Tailwind cannot generate a class for a
         // value that only exists at runtime.
-        borderColor: `${visual.tint}44`,
-        backgroundColor: `${visual.tint}14`,
-        color: visual.tint,
+        backgroundColor: visual.tint,
+        color: visual.ink,
+        /*
+         * A hairline in the page's own foreground, not the token's.
+         *
+         * tGBP's disc is near-black and would otherwise dissolve into a dark card with no
+         * edge at all. This is the same ring on every mark, so the set stays a set.
+         */
+        boxShadow: "inset 0 0 0 1px rgba(244, 243, 238, 0.10)",
       }}
     >
       {visual.glyph}

@@ -58,3 +58,36 @@ describe("tokenVisual", () => {
     expect(tokenVisual("cWHATEVER").glyph).toBe("?");
   });
 });
+
+/**
+ * Contrast, enforced rather than trusted.
+ *
+ * These marks are 28px and the glyph carries the whole identification, so a glyph that does
+ * not read makes the mark decorative noise. Two brand colours failed when the solid treatment
+ * was introduced — Tether's green at 3.25:1 under white, Tether Gold's gold at 2.44:1 — and
+ * both were deepened until they passed. That correction is easy to undo later by someone
+ * restoring an "accurate" brand colour, which is exactly why it is asserted.
+ */
+describe("mark legibility", () => {
+  const luminance = (hex: string) => {
+    const h = hex.replace("#", "");
+    const channels = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+    const linear = channels.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  };
+
+  const contrast = (a: string, b: string) => {
+    const [x, y] = [luminance(a), luminance(b)];
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+
+  const SYMBOLS = ["USDC", "USDT", "XAUT", "WETH", "BRON", "ZAMA", "TGBP", "NOPE"];
+
+  it("draws every glyph at 4.5:1 or better against its own disc", () => {
+    for (const symbol of SYMBOLS) {
+      const visual = tokenVisual(symbol);
+      const ratio = contrast(visual.tint, visual.ink);
+      expect(ratio, `${symbol}: ${visual.ink} on ${visual.tint} is ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
