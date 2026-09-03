@@ -163,7 +163,19 @@ function ModePanel({
   );
 }
 
-/** A quiet stack growing upward — accumulation, not excitement. */
+/**
+ * A quiet stack growing upward — accumulation, not excitement.
+ *
+ * Runs whether or not the panel is hovered. Gating it on `active` meant the two visuals took
+ * turns, so the section always had one dead half and the comparison it exists to draw was
+ * never actually on screen at once.
+ *
+ * The motion had to change to survive that. It was a one-shot grow-in, which looks deliberate
+ * when hover triggers it and looks broken when it has already happened by the time anyone
+ * scrolls down. Now the bars rise and settle on a long staggered loop — slow enough to read as
+ * interest accruing rather than a progress bar, and never returning to zero, because savings
+ * do not empty and refill.
+ */
 function SteadyVisual({ active, reduceMotion }: { active: boolean; reduceMotion: boolean }) {
   const bars = [38, 52, 61, 74, 86, 97, 112, 128];
 
@@ -172,13 +184,26 @@ function SteadyVisual({ active, reduceMotion }: { active: boolean; reduceMotion:
       {bars.map((height, index) => (
         <motion.span
           key={index}
-          className="w-5 rounded-t-[3px] bg-[linear-gradient(180deg,var(--color-elevated),var(--color-raised))] ring-1 ring-[var(--color-hairline)]"
+          className={cn(
+            "w-5 rounded-t-[3px] bg-[linear-gradient(180deg,var(--color-elevated),var(--color-raised))] ring-1 transition-[opacity]",
+            active ? "ring-[var(--color-hairline-strong)]" : "ring-[var(--color-hairline)]",
+          )}
           initial={{ height: 8 }}
-          animate={{ height: active || reduceMotion ? height : 8 }}
+          animate={{
+            // Reduced motion still gets the shape, just held still.
+            height: reduceMotion ? height : [height * 0.78, height, height * 0.78],
+            opacity: active ? 1 : 0.72,
+          }}
           transition={{
-            duration: 0.75,
-            delay: reduceMotion ? 0 : index * 0.055,
-            ease: [0.22, 1, 0.36, 1],
+            height: reduceMotion
+              ? { duration: 0.75, ease: [0.22, 1, 0.36, 1] }
+              : {
+                  duration: 4.2,
+                  repeat: Infinity,
+                  ease: [0.4, 0, 0.2, 1],
+                  delay: index * 0.12,
+                },
+            opacity: { duration: 0.4 },
           }}
         />
       ))}
@@ -211,7 +236,12 @@ function LuckyVisual({ active, reduceMotion }: { active: boolean; reduceMotion: 
               strokeWidth="0.3"
             />
             <circle r="1.1" fill="var(--color-accent)">
-              {active && !reduceMotion ? (
+              {/*
+                Not gated on hover, for the same reason as the stack opposite: a comparison
+                needs both halves alive. Reduced motion still parks the particle at its source
+                rather than looping it.
+              */}
+              {!reduceMotion ? (
                 <animateMotion
                   dur={`${2.4 + index * 0.24}s`}
                   repeatCount="indefinite"
@@ -224,6 +254,11 @@ function LuckyVisual({ active, reduceMotion }: { active: boolean; reduceMotion: 
           </g>
         ))}
 
+        {/*
+          The unhovered panel is de-emphasised, not switched off. At 0.3 the prize pool read as
+          disabled beside a panel whose particles were moving; hover should shift attention,
+          not decide which half of the section is working.
+        */}
         <circle
           cx="50"
           cy="50"
@@ -231,9 +266,9 @@ function LuckyVisual({ active, reduceMotion }: { active: boolean; reduceMotion: 
           fill="none"
           stroke="var(--color-accent)"
           strokeWidth="0.5"
-          opacity={active ? 0.8 : 0.3}
+          opacity={active ? 0.85 : 0.6}
         />
-        <circle cx="50" cy="50" r="3.2" fill="var(--color-accent)" opacity={active ? 0.9 : 0.4} />
+        <circle cx="50" cy="50" r="3.2" fill="var(--color-accent)" opacity={active ? 0.9 : 0.68} />
       </svg>
 
       <span className="pointer-events-none absolute inset-x-0 bottom-0 text-center font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-quaternary)]">
