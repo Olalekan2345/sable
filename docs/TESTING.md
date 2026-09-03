@@ -207,8 +207,14 @@ wrappers whose `rate` is not one.
 
 ### Browser suite
 
-`pnpm --filter @sable/web e2e` runs 51 Playwright specs across desktop Chrome and a Pixel 7
-viewport — **99 test runs**, all passing.
+`pnpm --filter @sable/web e2e` runs the six spec files across desktop Chrome and a Pixel 7
+viewport — **97 test runs: 95 passing, 2 skipped.**
+
+Both skips are conditional and deliberate. One is scoped to a single project (a phone
+navigation bar has nothing to assert on desktop). The other needs the connected wallet to have
+on-chain history and skips when it has none, because asserting on an empty timeline would
+prove nothing — the helper waits for the first entry and lets the caller decide, rather than
+passing vacuously.
 
 The suite covers the surfaces that work without a wallet, which are exactly the surfaces a
 first-time visitor sees and the ones least likely to be re-checked while testing connected

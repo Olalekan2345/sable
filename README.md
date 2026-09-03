@@ -9,7 +9,7 @@ Deposit privately, and **privately choose** whether your yield compounds or fund
 verifiable prize draw.
 
 [Ethereum Sepolia](https://sepolia.etherscan.io) · [Zama Protocol](https://zama.ai) ·
-134 contract tests · 99 browser tests · 21 unit tests
+134 contract tests · 97 browser tests · 21 unit tests
 
 </div>
 
@@ -501,14 +501,16 @@ pnpm sync:abis               # required — writes addresses into @sable/config
 pnpm web:dev
 ```
 
-Open a round:
+Schedule rounds, then let the keeper run them:
 
 ```bash
 cd packages/contracts
-npx hardhat round:configure --network sepolia --duration 604800
-npx hardhat round:open --id 1 --network sepolia
-npx hardhat round:run --id 1 --network sepolia   # after the close time
+npx hardhat rounds:schedule --network sepolia    # admin: 28 x 6h on the calendar
+npx hardhat keeper --network sepolia             # permissionless: opens, closes, draws, settles
 ```
+
+`keeper` does whatever is currently possible and exits, so it is safe to run on a cron or by
+hand. `.github/workflows/keeper.yml` runs it every fifteen minutes.
 
 ---
 
@@ -637,7 +639,7 @@ connects, so an upgrade cannot quietly reintroduce this.
 ```bash
 pnpm contracts:test                     # 134 contract tests
 pnpm --filter @sable/web typecheck
-pnpm --filter @sable/web e2e            # 99 browser tests
+pnpm --filter @sable/web e2e            # 97 browser tests
 pnpm --filter @sable/web test           # 21 unit tests
 ```
 
