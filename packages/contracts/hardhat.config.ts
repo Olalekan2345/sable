@@ -27,7 +27,15 @@ dotenv.config();
  * deposit failed twice in a row before the same call succeeded elsewhere. Override with
  * `SEPOLIA_RPC_URL`; a dedicated endpoint is worth having for anything that writes.
  */
-const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL ?? "https://11155111.rpc.thirdweb.com";
+/*
+ * `||`, not `??`.
+ *
+ * CI supplies this from an optional repository secret, and GitHub Actions sets an absent
+ * secret to the empty string rather than leaving it unset — so `??` handed hardhat `""` and
+ * every run died on `HH117: Empty string for network or forking URL`. An unset variable and
+ * a variable set to nothing mean the same thing here, and both should fall back.
+ */
+const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://11155111.rpc.thirdweb.com";
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY ?? "";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? "";
 
