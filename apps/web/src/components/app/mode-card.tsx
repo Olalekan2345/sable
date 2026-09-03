@@ -10,7 +10,7 @@ import { Badge, Card, PrivacyNote } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { useReveal } from "@/lib/hooks/use-reveal";
 import { useActiveRound, useRoundCountdown, type RoundSummary } from "@/lib/hooks/use-rounds";
-import { usePositionHandles } from "@/lib/hooks/use-sable";
+import { useProtocolState, usePositionHandles } from "@/lib/hooks/use-sable";
 
 /**
  * The yield-mode card.
@@ -164,6 +164,20 @@ export function NextDrawCard({ className }: { className?: string }) {
    */
   const { isParticipant } = usePositionHandles();
 
+  /*
+   * How many savers are in the pool — public, and safe to say.
+   *
+   * Registration is visible on-chain and positions are not, so a count reveals nothing a
+   * reader could not already gather from the participant registry. It answers "is anyone else
+   * here", which is the question that makes a prize pool feel like a pool.
+   *
+   * `participantCount` is the whole registry rather than a per-round figure. Everyone
+   * registered accrues weight in every round, so for an open round the two are the same thing
+   * — up to the slot ceiling below.
+   */
+  const { participantCount } = useProtocolState();
+  const savers = Number(participantCount);
+
   if (!round) {
     return (
       <Card className={cn("p-7 sm:p-8", className)}>
@@ -204,6 +218,33 @@ export function NextDrawCard({ className }: { className?: string }) {
       ) : (
         <p className="mt-5 text-[15px] text-[var(--color-primary)]">{progress.headline}</p>
       )}
+
+      {isOpen ? (
+        <div className="mt-4 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px]">
+          <span className="text-[var(--color-secondary)]">
+            <span className="text-numeric font-semibold text-[var(--color-primary)]">{savers}</span>{" "}
+            {savers === 1 ? "saver" : "savers"} in the pool
+          </span>
+          <span className="text-[var(--color-quaternary)]">·</span>
+          <span className="text-[var(--color-tertiary)]">
+            {round.config.maxParticipants} scored per round
+          </span>
+        </div>
+      ) : null}
+
+      {/*
+        The ceiling is worth naming out loud, because exceeding it is silent on-chain.
+        `closeRound` snapshots only the first `maxParticipants` of the registry, and savers
+        past that keep their principal and keep accruing weight while being unable to win —
+        with nothing anywhere to tell them. A count beside the limit is the cheapest possible
+        warning, and it costs a reader nothing when the round is not full.
+      */}
+      {isOpen && savers > round.config.maxParticipants ? (
+        <p className="mt-2 text-[12px] leading-relaxed text-[var(--color-caution)]">
+          More savers than slots: only the first {round.config.maxParticipants} registered are
+          scored this round. The rest keep their principal and keep earning, but cannot win it.
+        </p>
+      ) : null}
 
       {isOpen ? (
         <p className="mt-2.5 text-[13px] leading-relaxed text-[var(--color-tertiary)]">
