@@ -14,7 +14,15 @@ import { Reveal, Section } from "./section";
  * changes. Steady grows a quiet stack; Lucky sends particles to a shared prize object.
  */
 export function TwoWays() {
-  const [active, setActive] = useState<"steady" | "lucky">("steady");
+  /*
+   * Rests on Lucky, because Lucky is what a deposit does.
+   *
+   * The section used to open on Steady and fall back to it, which quietly framed the prize
+   * draw as the thing you opt into. The contract has it the other way round — a new position
+   * opens in Lucky and Steady is the opt-out — so resting here was teaching the wrong model
+   * before a single word was read.
+   */
+  const [active, setActive] = useState<"steady" | "lucky">("lucky");
   const reduceMotion = useReducedMotion();
 
   return (
@@ -34,8 +42,19 @@ export function TwoWays() {
 
       <div
         className="grid gap-4 lg:grid-cols-2"
-        onMouseLeave={() => setActive("steady")}
+        onMouseLeave={() => setActive("lucky")}
       >
+        <ModePanel
+          mode="lucky"
+          active={active === "lucky"}
+          onActivate={() => setActive("lucky")}
+          reduceMotion={!!reduceMotion}
+          title="Lucky"
+          headline="Pool the yield."
+          body="The default. Depositing puts your yield into confidential prize draws, while your principal stays exactly where it is."
+          visual={<LuckyVisual active={active === "lucky"} reduceMotion={!!reduceMotion} />}
+        />
+
         <ModePanel
           mode="steady"
           active={active === "steady"}
@@ -46,22 +65,12 @@ export function TwoWays() {
           body="Your attributable yield compounds into your private savings position. Nothing leaves, nothing is pooled."
           visual={<SteadyVisual active={active === "steady"} reduceMotion={!!reduceMotion} />}
         />
-
-        <ModePanel
-          mode="lucky"
-          active={active === "lucky"}
-          onActivate={() => setActive("lucky")}
-          reduceMotion={!!reduceMotion}
-          title="Lucky"
-          headline="Pool the yield."
-          body="Contribute your yield to confidential prize draws while your principal stays exactly where it is."
-          visual={<LuckyVisual active={active === "lucky"} reduceMotion={!!reduceMotion} />}
-        />
       </div>
 
       <Reveal delay={0.2}>
         <p className="mt-10 text-center text-[13px] text-[var(--color-tertiary)]">
-          You can switch privately at any time. Neither choice is visible on-chain.
+          New savers start in Lucky, so depositing enters the draw. You can switch to Steady
+          privately at any time, and neither choice is visible on-chain.
         </p>
       </Reveal>
     </Section>

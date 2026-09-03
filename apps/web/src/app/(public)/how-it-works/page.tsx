@@ -47,18 +47,26 @@ export default function HowItWorksPage() {
         <List
           items={[
             <>
-              <strong className="text-[var(--color-primary)]">Steady</strong> — the yield compounds
-              into your own position. You are not entered into any draw.
+              <strong className="text-[var(--color-primary)]">Lucky</strong> —{" "}
+              <em>the default.</em> The yield goes to a shared prize pool, and your savings earn
+              eligibility for that round&rsquo;s draw. Depositing is all it takes to be entered.
             </>,
             <>
-              <strong className="text-[var(--color-primary)]">Lucky</strong> — the yield goes to a
-              shared prize pool, and your savings earn eligibility for that round&rsquo;s draw.
+              <strong className="text-[var(--color-primary)]">Steady</strong> — the yield compounds
+              into your own position instead. This is the one you opt out to, and you are then
+              entered into no draw.
             </>,
           ]}
         />
         <P>
           Your principal is untouched either way. The only thing that changes is the destination of
           the interest it earns.
+        </P>
+        <P>
+          A new position opens in Lucky, so a saver who never visits the mode screen is in the pool
+          rather than quietly excluded from it. That direction is deliberate: for a prize-linked
+          savings account, &ldquo;everyone is in the draw unless they privately choose not to
+          be&rdquo; is a stronger promise than its inverse.
         </P>
         <P>
           The choice itself is encrypted. There is one function, taking one opaque ciphertext — no

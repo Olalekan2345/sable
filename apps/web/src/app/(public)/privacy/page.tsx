@@ -79,9 +79,11 @@ export default function PrivacyPage() {
           the harder problem, and it is where most confidential prize-savings designs leak.
         </P>
         <P>
-          If opting into a draw meant calling a different function, the function selector would
+          If changing your mode meant calling a different function, the function selector would
           publish your choice to anyone reading the mempool — the balance would be encrypted and the
-          decision beside it in plaintext. Sable avoids this structurally:
+          decision beside it in plaintext. That cuts both ways: since a new position opens in Lucky,
+          the disclosure a naive design would leak is the decision to leave the draw. Sable avoids
+          it structurally, in either direction:
         </P>
         <List
           items={[
@@ -89,7 +91,7 @@ export default function PrivacyPage() {
             "One event, carrying only an address. There is no LuckyModeEnabled event to subscribe to.",
             "Eligibility is computed with a homomorphic select over the encrypted bit, so both branches always execute and the gas cost is identical.",
             "A Steady saver receives an empty ticket range — arithmetically indistinguishable from any other allocation.",
-            "Even never having set a mode is indistinguishable from having chosen Steady, because the default is stored encrypted too.",
+            "Even never having set a mode is indistinguishable from having chosen Lucky, because the default is Lucky and is stored encrypted like any other selection.",
           ]}
         />
       </ContentSection>

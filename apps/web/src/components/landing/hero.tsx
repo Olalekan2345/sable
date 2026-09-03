@@ -168,11 +168,16 @@ function ModeToggle({ reduceMotion }: { reduceMotion: boolean }) {
           animate={reduceMotion ? { left: 4 } : { left: ["4px", "calc(50% + 0px)", "4px"] }}
           transition={{ duration: 7, repeat: Infinity, ease: [0.76, 0, 0.24, 1], times: [0, 0.5, 1] }}
         />
-        <span className="relative z-10 flex-1 py-2 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-secondary)]">
-          Steady
-        </span>
+        {/*
+          Lucky sits first, where the highlight rests. A new position opens in Lucky, so
+          showing the switch parked on Steady would illustrate the opposite of what depositing
+          actually does.
+        */}
         <span className="relative z-10 flex-1 py-2 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-secondary)]">
           Lucky
+        </span>
+        <span className="relative z-10 flex-1 py-2 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--color-secondary)]">
+          Steady
         </span>
       </div>
 
