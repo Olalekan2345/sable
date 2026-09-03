@@ -110,7 +110,20 @@ body {
 
 /* A visible, high-contrast focus ring everywhere. Premium is not an excuse for
    invisible focus — keyboard users get the same quality of feedback. */
-:focus-visible {
+/*
+ * The default focus ring, and the one case that has to opt out.
+ *
+ * `outline-offset` draws *outside* the focused element. That is right almost everywhere, and
+ * wrong for a control sitting inside a composed field: the amount inputs place a currency
+ * sign to the left of the input and a token symbol to its right, both siblings, so a ring
+ * around the input alone was drawn straight across the `$` and the first letter of the
+ * symbol.
+ *
+ * Such a field marks its inner control `data-focus-ring="inset"` and takes responsibility for
+ * showing focus on the wrapper instead — which is also the more honest indicator, since the
+ * whole field is what the saver is typing into.
+ */
+:focus-visible:not([data-focus-ring="inset"]) {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 4px;

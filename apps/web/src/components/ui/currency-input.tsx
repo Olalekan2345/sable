@@ -75,7 +75,18 @@ export function CurrencyInput({
           "relative flex items-center rounded-[var(--radius-md)] border bg-[var(--color-inset)] transition-colors",
           error
             ? "border-[rgba(255,107,107,0.4)]"
-            : "border-[var(--color-hairline-strong)] focus-within:border-[var(--color-hairline-accent)]",
+            : "border-[var(--color-hairline-strong)] focus-within:border-[var(--color-accent)]",
+          /*
+           * Focus is shown on the whole field, because the whole field is what is being
+           * typed into — the input marks itself `data-focus-ring="inset"` to opt out of
+           * the global outline, which would otherwise cut across the currency sign and
+           * the token symbol either side of it.
+           *
+           * A translucent glow rather than a solid ring with an offset: an offset ring
+           * needs its gap painted in whatever sits behind the field, and these appear on
+           * more than one card colour. Alpha composites over any of them.
+           */
+          "focus-within:shadow-[0_0_0_3px_rgba(255,206,26,0.22)]",
         )}
       >
         <span
@@ -87,6 +98,7 @@ export function CurrencyInput({
 
         <input
           id={id}
+          data-focus-ring="inset"
           type="text"
           inputMode="decimal"
           autoComplete="off"
