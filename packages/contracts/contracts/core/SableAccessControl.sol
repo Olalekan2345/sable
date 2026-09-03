@@ -21,7 +21,16 @@ abstract contract SableAccessControl {
     /// @notice Full control: role management, round configuration, adapter wiring.
     bytes32 public constant ADMIN_ROLE = keccak256("SABLE_ADMIN_ROLE");
 
-    /// @notice Day-to-day round lifecycle driver (open/close/batch/draw/settle).
+    /**
+     * @notice Vestigial. Gates nothing.
+     * @dev    This once guarded the round lifecycle (open/close/batch/draw/settle). Those
+     *         calls are now permissionless, so that a draw never depends on one key staying
+     *         online and a saver waiting on a prize can settle the round themselves.
+     *
+     *         The constant is kept so the deployed ABI does not change under tooling that
+     *         already reads it, but nothing in this codebase checks it and nothing new
+     *         should. Granting it confers no capability whatsoever.
+     */
     bytes32 public constant OPERATOR_ROLE = keccak256("SABLE_OPERATOR_ROLE");
 
     mapping(bytes32 role => mapping(address account => bool)) private _roles;

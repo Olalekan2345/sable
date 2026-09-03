@@ -81,6 +81,15 @@ export default function RoundPage({ params }: { params: Promise<{ roundId: strin
   }
 
   const { config, lifecycle } = round;
+
+  // Verification inputs for the published draw points, derived from the same public round
+  // configuration a third party would use. `1n << bits` rather than `2 ** bits` because the
+  // domain exceeds Number's exact-integer range once ticketBits passes 53.
+  const expectedPointCount =
+    config.jackpotWinnerCount + config.midWinnerCount + config.smallWinnerCount;
+  const ticketDomain = 1n << BigInt(config.ticketBits);
+  const pointsInDomain = (points ?? []).every((point) => point >= 0n && point < ticketDomain);
+  const pointCountMatches = (points ?? []).length === expectedPointCount;
   const complete = lifecycle.state === RoundState.Complete;
 
   return (
@@ -334,8 +343,8 @@ export default function RoundPage({ params }: { params: Promise<{ roundId: strin
 
           {/*
             The numbers themselves. Until the round completed these were ciphertexts nobody
-            could read — including the operator who drew them — and they are released only
-            once settlement is finished and no outcome can still be influenced.
+            could read — including whoever sent the transaction that drew them — and they are
+            released only once settlement is finished and no outcome can still be influenced.
           */}
           {points && points.length > 0 ? (
             <div className="mt-7 border-t border-[var(--color-hairline)] pt-6">
@@ -357,10 +366,30 @@ export default function RoundPage({ params }: { params: Promise<{ roundId: strin
                 ))}
               </ul>
 
+              {/*
+                Checked, not claimed. The page could simply assert that the points are
+                well-formed, but a reader has no reason to take that on trust from the same
+                interface that is reporting the outcome — and an assertion that silently stops
+                being true is worse than none. Both properties are recomputed here from the
+                published values and the public round configuration, and the wording follows
+                what the arithmetic actually says.
+              */}
               <p className="mt-4 max-w-[62ch] text-[12px] leading-relaxed text-[var(--color-tertiary)]">
-                Every point falls inside the 2^{config.ticketBits} ticket domain, and there are as
-                many as this round was configured for. Ticket ranges stay encrypted, so these show
-                where the draw landed — never whose holding it landed in.
+                {pointsInDomain && pointCountMatches ? (
+                  <>
+                    Checked: all {points.length} points fall inside the 2^{config.ticketBits} ticket
+                    domain, and there are exactly as many as this round was configured to draw.
+                  </>
+                ) : (
+                  <>
+                    These points do not match this round&rsquo;s configuration
+                    {pointCountMatches ? "" : ` — ${points.length} published, ${expectedPointCount} configured`}
+                    {pointsInDomain ? "" : " — at least one falls outside the ticket domain"}. Treat
+                    the round as unverified and inspect the transactions directly.
+                  </>
+                )}{" "}
+                Ticket ranges stay encrypted, so these show where the draw landed — never whose
+                holding it landed in.
               </p>
             </div>
           ) : null}

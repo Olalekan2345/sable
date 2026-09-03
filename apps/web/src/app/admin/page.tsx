@@ -7,7 +7,7 @@ import {
   addresses,
   formatTimestamp,
 } from "@sable/config";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount } from "wagmi";
 
 import { TransactionStatus } from "@/components/app/transaction-status";
 import { SiteFooter } from "@/components/shell/site-footer";
@@ -25,7 +25,7 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { useConfidentialTx } from "@/lib/hooks/use-confidential-tx";
 import { useActiveRound, useAllRounds } from "@/lib/hooks/use-rounds";
-import { useProtocolState, useSableContract } from "@/lib/hooks/use-sable";
+import { useProtocolState } from "@/lib/hooks/use-sable";
 
 /**
  * Operator dashboard.
@@ -39,8 +39,7 @@ import { useProtocolState, useSableContract } from "@/lib/hooks/use-sable";
  * are disabled with the reason shown, rather than being present but inert.
  */
 export default function AdminPage() {
-  const { address, isConnected } = useAccount();
-  const sable = useSableContract();
+  const { isConnected } = useAccount();
   const { notify } = useToast();
 
   const protocol = useProtocolState();
@@ -48,13 +47,19 @@ export default function AdminPage() {
   const { rounds } = useAllRounds();
   const tx = useConfidentialTx();
 
-  const { data: operatorRole } = useReadContract({ ...sable, functionName: "OPERATOR_ROLE" });
-  const { data: isOperator } = useReadContract({
-    ...sable,
-    functionName: "hasRole",
-    args: operatorRole && address ? [operatorRole, address] : undefined,
-    query: { enabled: Boolean(operatorRole && address) },
-  });
+  /*
+   * No role is read here, because none gates the controls below.
+   *
+   * This page used to check `OPERATOR_ROLE` and render the lifecycle read-only for anybody
+   * who lacked it. Round advancement is now permissionless — `openRound`, `closeRound`, the
+   * eligibility, ticket, draw and settlement batches and `completeRound` check nothing — so
+   * that check told connected wallets they could not do something they could. The role
+   * constant still exists in the deployed contract and is still granted to the deployer; it
+   * simply guards nothing, and a UI gate built on it is a lie about the access control.
+   *
+   * `configureRound` remains admin-only, and the transaction reverts on its own for anybody
+   * else. Guessing at that in the client would risk the opposite error.
+   */
 
   const latest = activeRound ?? rounds[0] ?? null;
 
@@ -161,11 +166,7 @@ export default function AdminPage() {
 
                 {!isConnected ? (
                   <p className="mt-6 text-[13px] text-[var(--color-tertiary)]">
-                    Connect an operator wallet to advance the round.
-                  </p>
-                ) : !isOperator ? (
-                  <p className="mt-6 text-[13px] text-[var(--color-tertiary)]">
-                    This wallet does not hold the operator role. Controls are read-only.
+                    Connect any wallet with gas to advance the round. No role is required.
                   </p>
                 ) : (
                   <>

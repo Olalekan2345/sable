@@ -266,8 +266,8 @@ export function useActiveRound() {
  * The numbers a completed round actually drew.
  *
  * Published by `completeRound`, so this returns nothing until then — while a round is
- * settling the points exist as handles nobody holds the permission to read, including the
- * operator who generated them.
+ * settling the points exist as handles nobody holds the permission to read, including
+ * whoever sent the transaction that generated them.
  *
  * This is what turns the draw from *trustworthy* into *checkable*. Anyone can now confirm
  * that the points sit inside the ticket domain and that there are as many as the round was

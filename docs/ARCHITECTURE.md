@@ -51,7 +51,7 @@ flowchart TB
 contracts/
   Sable.sol                          concrete deployment
   core/
-    SableAccessControl.sol           two roles + pause
+    SableAccessControl.sol           admin role + pause (OPERATOR_ROLE is vestigial)
     SableCore.sol                    storage, checkpointing, yield, ACL helper
     SableVault.sol                   deposit, withdraw, mode, rewards
     SablePrizeEngine.sol             rounds, tickets, draw, settlement
@@ -311,11 +311,17 @@ When no deployment exists, `isConfigured()` returns false and every surface rend
 Withdrawals are deliberately not gated on `paused`. A pause that trapped principal would make
 the product's central promise conditional on operator behaviour.
 
-There is no operator role. Round advancement was originally gated on `OPERATOR_ROLE`, which
-made a live draw depend on one key staying online — a saver whose prize sat unsettled had no
-recourse but to wait. Every lifecycle call is now permissionless, so the keeper described in
-the README is a scheduling convenience rather than a party anyone has to trust. The row above
-says "anyone" because that is literally the access control.
+No role gates round advancement. It was originally gated on `OPERATOR_ROLE`, which made a
+live draw depend on one key staying online — a saver whose prize sat unsettled had no recourse
+but to wait. Every lifecycle call is now permissionless, so the keeper described in the README
+is a scheduling convenience rather than a party anyone has to trust. The row above says
+"anyone" because that is literally the access control.
+
+`OPERATOR_ROLE` is still declared in `SableAccessControl` and still granted to the deployer at
+construction. It guards nothing. It is left in place because the deployed bytecode is
+immutable and removing it would mean redeploying a live vault to delete an unused constant —
+but nothing should be built on it, and anything that reads it to decide who may act is
+reporting a restriction that does not exist.
 
 The contracts are **not upgradeable**. For a protocol custodying savings with a small
 immutable rule set, a proxy adds an admin capability more dangerous than the bugs it could

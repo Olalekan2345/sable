@@ -226,9 +226,12 @@ it("states plainly that the balance being shielded is public")
 
 The shield specs go further and exercise a connected wallet. Every RPC call passes through to
 Sepolia; exactly one value is rewritten — the `balanceOf` result inside the Multicall3 batch —
-because the test wallet holds no USDCMock and a faucet is deliberately not part of the
-product. The wrapper's `underlying`, `rate`, pause and denylist state, and both token symbols
-are genuinely fetched, so a break in the real integration still fails the suite.
+because the synthetic test wallet holds no USDCMock. It could mint some: the app carries a
+*Get test tokens* button and `npx hardhat faucet` does the same from the CLI. Rewriting one
+read is preferred anyway, because a spec that mints on Sepolia spends gas, depends on a live
+faucet contract to pass, and leaves the wallet in a different state on every run. The
+wrapper's `underlying`, `rate`, pause and denylist state, and both token symbols are genuinely
+fetched, so a break in the real integration still fails the suite.
 
 Those five exist to make the no-fake-data and no-overclaiming rules **mechanically
 enforced** rather than a matter of discipline. A future redesign that introduced a
