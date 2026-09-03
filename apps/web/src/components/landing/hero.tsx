@@ -1,9 +1,11 @@
 "use client";
 
 import { NETWORK_LABEL } from "@sable/config";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useState } from "react";
 
 import { SableMark } from "@/components/brand/logo";
+import { TokenMark } from "@/components/brand/token-mark";
 import { ButtonLink } from "@/components/ui/button";
 import { LockIcon } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
@@ -136,8 +138,9 @@ function SavingsCard({ reduceMotion }: { reduceMotion: boolean }) {
 
       <p className="text-eyebrow mt-7">Your savings</p>
 
-      <div className="accent-halo mt-2.5">
-        <span className="masked-value text-[38px] font-semibold">$ ••••••</span>
+      <div className="accent-halo mt-2.5 flex items-center gap-3">
+        <CyclingTokenMark reduceMotion={reduceMotion} />
+        <span className="masked-value text-[38px] font-semibold">••••••</span>
       </div>
 
       <p className="mt-3.5 flex items-center gap-2 text-[11px] text-[var(--color-tertiary)]">
@@ -149,6 +152,55 @@ function SavingsCard({ reduceMotion }: { reduceMotion: boolean }) {
 
       <ModeToggle reduceMotion={reduceMotion} />
     </motion.div>
+  );
+}
+
+/**
+ * The assets Sable can hold, cycling.
+ *
+ * A single `$` said the savings were dollars. They are not: the vault takes a confidential
+ * token, and the wallet page lists several. Rotating the marks says "any of these" in the one
+ * place a visitor looks first, and does it with the same artwork the rest of the app uses, so
+ * the claim is the interface rather than a promise about it.
+ *
+ * Three seconds is slow enough to read a logo and not so slow that a visitor who scrolls past
+ * in five sees only one. It cycles rather than showing a row because the balance beside it is
+ * a *single* masked figure — a row of marks would imply the number covers all of them.
+ */
+const CYCLED_ASSETS = ["USDC", "USDT", "WETH", "ZAMA", "BRON", "TGBP", "XAUT"] as const;
+
+function CyclingTokenMark({ reduceMotion }: { reduceMotion: boolean }) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    // Reduced motion keeps the first mark and never swaps it. The point survives: it is still
+    // a token rather than a currency sign.
+    if (reduceMotion) return;
+
+    const timer = window.setInterval(() => {
+      setIndex((current) => (current + 1) % CYCLED_ASSETS.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [reduceMotion]);
+
+  const symbol = CYCLED_ASSETS[index] ?? CYCLED_ASSETS[0];
+
+  return (
+    // Fixed box, so the masked figure beside it never shifts as marks swap.
+    <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={symbol}
+          className="absolute inset-0"
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.86 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={reduceMotion ? undefined : { opacity: 0, scale: 1.08 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <TokenMark symbol={symbol} size="md" labelled />
+        </motion.span>
+      </AnimatePresence>
+    </span>
   );
 }
 
