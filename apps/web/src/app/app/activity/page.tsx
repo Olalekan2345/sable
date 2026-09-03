@@ -1,6 +1,7 @@
 "use client";
 
 import { assetSymbol, deployment, formatTimestamp } from "@sable/config";
+import { useMemo, useState } from "react";
 import { formatUnits } from "viem";
 import { useAccount } from "wagmi";
 
@@ -14,7 +15,7 @@ import {
   PrivacyNote,
   Skeleton,
 } from "@/components/ui/primitives";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { ACTIVITY_LABELS, useActivity } from "@/lib/hooks/use-activity";
 
 /**
@@ -33,7 +34,35 @@ export default function ActivityPage() {
   const { isConnected } = useAccount();
   const { data, isLoading, error } = useActivity();
 
-  const entries = data?.entries ?? [];
+  const entries = useMemo(() => data?.entries ?? [], [data]);
+
+  /*
+   * Paging, because a full history is a wall.
+   *
+   * Every action a saver takes lands here — shielding, the operator approval it needs,
+   * deposits, mode changes, withdrawals — so an evening of testing produces a page nobody
+   * scrolls to the end of. The timeline is already sorted newest-first, which is the half
+   * anybody actually wants, so the rest is better behind a page turn than beneath a scroll.
+   *
+   * Paging is client-side on purpose. The entries are already in memory: the hook fetched the
+   * whole window in one pass, and slicing what is held costs nothing, while re-querying the
+   * node per page would multiply exactly the log queries that public endpoints throttle.
+   */
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+
+  /*
+   * Clamped during render, not corrected in an effect.
+   *
+   * A refetch, an account switch or a new transaction can shorten the list under a reader
+   * sitting on the last page. Fixing that in an effect means rendering the stranded empty page
+   * first and repairing it afterwards — a cascading render, and a visible flash of nothing.
+   * Deriving the page instead means the out-of-range value never reaches the screen.
+   */
+  const safePage = Math.min(page, pageCount - 1);
+  const start = safePage * PAGE_SIZE;
+  const visible = entries.slice(start, start + PAGE_SIZE);
 
   if (!isConnected) {
     return (
@@ -106,7 +135,7 @@ export default function ActivityPage() {
           />
         ) : (
           <ul>
-            {entries.map((entry) => {
+            {visible.map((entry) => {
               const copy = ACTIVITY_LABELS[entry.kind];
               return (
                 <li
@@ -158,6 +187,44 @@ export default function ActivityPage() {
             })}
           </ul>
         )}
+
+        {/*
+          Only when there is more than one page. A pager under a five-row list is furniture.
+        */}
+        {!isLoading && !error && pageCount > 1 ? (
+          <div className="flex items-center justify-between gap-4 border-t border-[var(--color-hairline)] px-7 py-4">
+            <p className="text-[12px] text-[var(--color-tertiary)]">
+              {/*
+                Positions, not just a page number: "11–20 of 34" tells a reader where they are
+                in the history, which "page 2 of 4" does not.
+              */}
+              <span className="text-numeric">{start + 1}</span>–
+              <span className="text-numeric">{Math.min(start + PAGE_SIZE, entries.length)}</span>{" "}
+              of <span className="text-numeric">{entries.length}</span>
+            </p>
+
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setPage(Math.max(safePage - 1, 0))}
+                disabled={safePage === 0}
+                aria-label="Newer activity"
+              >
+                ← Newer
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setPage(Math.min(safePage + 1, pageCount - 1))}
+                disabled={safePage >= pageCount - 1}
+                aria-label="Older activity"
+              >
+                Older →
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <PrivacyNote className="mt-6 items-start">

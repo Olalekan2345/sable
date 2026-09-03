@@ -50,29 +50,25 @@ export function WalletButton({ className }: { className?: string }) {
     };
   }, [menuOpen]);
 
-  /*
-   * While the stored session is being restored, say nothing rather than "Connect wallet".
-   *
-   * This button is on every screen, so it was the most visible symptom of treating
-   * `!isConnected` as "disconnected": it flipped to Connect on load and back to the address a
-   * moment later, on every page, which looks exactly like a connection being dropped and
-   * re-established. A disabled placeholder holds the same space and makes no claim.
-   */
-  if (isResolving) {
-    return (
-      <div className={cn("flex flex-col items-end gap-1", className)}>
-        <Button size="sm" variant="secondary" disabled className="opacity-60">
-          <span className="animate-pulse">Reconnecting…</span>
-        </Button>
-      </div>
-    );
-  }
-
   if (!isConnected) {
     return (
       <div className={cn("flex flex-col items-end gap-1", className)}>
-        <Button size="sm" variant="secondary" onClick={connectWallet}>
-          Connect wallet
+        {/*
+          One button whether resolving or disconnected.
+          
+          Rendering a separate "Reconnecting…" button unmounted this one and mounted another
+          milliseconds later, on every page. A click in that gap lands on a detaching element
+          and does nothing — the header button is the most-pressed control in the product, so
+          it must never be swapped underneath a cursor. Only its label and enabled state
+          change now.
+        */}
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={connectWallet}
+          className={isResolving ? "opacity-70" : undefined}
+        >
+          {isResolving ? "Reconnecting…" : "Connect wallet"}
         </Button>
         <WalletModal open={walletModal.open} onClose={walletModal.hide} />
       </div>

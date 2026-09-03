@@ -41,20 +41,6 @@ export function ConnectPrompt({
    * somebody has to sit through — and when it fails, the prompt below appears as it always
    * did.
    */
-  if (isResolving) {
-    return (
-      <Card className="mx-auto max-w-[520px] p-9 text-center sm:p-11">
-        <div className="mx-auto mb-7 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-[var(--color-raised)]">
-          <SableMark className="h-6 w-6 opacity-60" />
-        </div>
-        <p className="text-[15px] text-[var(--color-secondary)]">Restoring your session…</p>
-        <div className="mx-auto mt-6 h-1 w-32 overflow-hidden rounded-full bg-[var(--color-inset)]">
-          <div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--color-accent)]" />
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <Card className="mx-auto max-w-[520px] p-9 text-center sm:p-11">
       <div className="mx-auto mb-7 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--color-hairline)] bg-[var(--color-raised)]">
@@ -62,15 +48,32 @@ export function ConnectPrompt({
       </div>
 
       <h1 className="text-[22px] font-semibold tracking-[-0.02em] text-[var(--color-primary)]">
-        {title}
+        {isResolving ? "Restoring your session…" : title}
       </h1>
       <p className="mx-auto mt-4 max-w-[42ch] text-[14px] leading-relaxed text-[var(--color-secondary)]">
-        {description}
+        {isResolving
+          ? "This browser has a wallet connected. Reading it back from storage now."
+          : description}
       </p>
 
       <div className="mt-8 flex flex-col gap-3">
+        {/*
+          One button, always mounted.
+          
+          An earlier version returned a different card while the session was being restored,
+          which unmounted this button and mounted a new one a moment later. That is not merely
+          a flash: a click landing in the gap hits an element that is being detached and does
+          nothing, so the first press of Connect could silently fail. Varying the state of a
+          single element keeps the DOM stable and the click target real.
+        */}
+        {/*
+          Not disabled while resolving. Restoring normally takes milliseconds, but a status
+          that stuck would leave the only way into the product permanently unclickable, and
+          connecting during a restore is harmless. The label says what is happening; the
+          button still works.
+        */}
         <Button size="lg" fullWidth onClick={connectWallet}>
-          Connect wallet
+          {isResolving ? "Reconnecting…" : "Connect wallet"}
         </Button>
 
         <ButtonLink href="/draws" variant="ghost" size="md" fullWidth>
