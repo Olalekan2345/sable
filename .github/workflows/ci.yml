@@ -100,14 +100,23 @@ jobs:
 
       - name: Verify the relayer SDK is served, not bundled
         run: |
-          # Bundling the SDK's ~5.4MB of WASM takes the build from 43s to >20 minutes, so
-          # it is copied into public/ and loaded at runtime. If this asset is missing the
-          # app builds fine and then fails to encrypt in the browser — worth catching here.
-          test -f apps/web/public/relayer-sdk/relayer-sdk-js.umd.cjs \
-            || { echo "::error::Relayer SDK bundle missing from public/"; exit 1; }
-          test -f apps/web/public/relayer-sdk/tfhe_bg.wasm \
-            || { echo "::error::TFHE wasm missing from public/"; exit 1; }
-          echo "Relayer SDK assets present"
+          # Bundling the SDK's ~5.4MB of WASM takes the build from 43s to >20 minutes, so it
+          # is copied into public/ and loaded at runtime. If any asset is missing the app
+          # builds fine and then fails to encrypt in the browser — worth catching here.
+          #
+          # These names must track REQUIRED in apps/web/scripts/copy-relayer-sdk.mjs.
+          for asset in relayer-sdk.js tfhe_bg.wasm kms_lib_bg.wasm workerHelpers.js; do
+            test -f "apps/web/public/relayer-sdk/$asset" || { echo "::error::Relayer SDK asset missing from public/: $asset"; exit 1; }
+          done
+
+          # And the UMD bundle must NOT be served under its original name. Next sets a
+          # content type for .cjs that browsers refuse to execute, so the copy script renames
+          # it to .js and removes the original. A .cjs reappearing here means that rename
+          # regressed, and the resulting failure is silent: the asset returns 200 and the
+          # script simply never runs.
+          test ! -f apps/web/public/relayer-sdk/relayer-sdk-js.umd.cjs || { echo "::error::relayer-sdk-js.umd.cjs is being served; it must be renamed to .js"; exit 1; }
+
+          echo "Relayer SDK assets present, and the UMD bundle is served as .js"
 
   e2e:
     name: Browser tests
