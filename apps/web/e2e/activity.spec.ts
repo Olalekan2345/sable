@@ -153,12 +153,33 @@ test.describe("Activity", () => {
     await connect(page);
     await awaitTimeline(page);
 
-    const body = await page.locator("main").innerText();
-    test.skip(!/Shielded/i.test(body), "Nothing shielded on this deployment.");
+    const rows = await page.locator("main li").evaluateAll((items) =>
+      items.map((li) => ({
+        text: (li.textContent ?? "").trim(),
+        tx: (li.querySelector('a[href*="/tx/"]') as HTMLAnchorElement | null)?.href ?? "",
+      })),
+    );
 
-    // Shielding moves the underlying to the wrapper and mints the confidential token; both
-    // emit transfers in the same transaction as `Wrap`. Showing all three would report one
-    // action three times under three names.
-    expect(body).not.toMatch(/Confidential transfer in/i);
+    const wraps = rows.filter((row) => /Shielded/i.test(row.text) && row.tx !== "");
+    test.skip(wraps.length === 0, "Nothing shielded on this deployment.");
+
+    /*
+     * Shielding moves the underlying to the wrapper and mints the confidential token; both
+     * emit transfers in the same transaction as `Wrap`. Showing all three would report one
+     * action three times under three names.
+     *
+     * Scoped to the transaction, because the wallet-wide version of this assertion is wrong.
+     * It banned the words "Confidential transfer in" from the page entirely, and a confidential
+     * transfer arriving from anywhere else — a withdrawal, another person, a vault this
+     * deployment has replaced — is real history that belongs in the timeline. It passed only
+     * while the test wallet had no such history, then failed in CI the moment it did, blaming
+     * the app for correctly reporting two withdrawals from a superseded deployment.
+     */
+    for (const wrap of wraps) {
+      const duplicated = rows.filter(
+        (row) => row.tx === wrap.tx && /Confidential transfer in/i.test(row.text),
+      );
+      expect(duplicated, `wrap at ${wrap.tx} is also listed as a plain transfer`).toHaveLength(0);
+    }
   });
 });

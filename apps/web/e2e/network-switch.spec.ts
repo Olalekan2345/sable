@@ -18,6 +18,12 @@ import { connect } from "./helpers";
  * surfaced, and choosing to fix it reaches the wallet as a real switch request. An earlier
  * version asserted the second mechanism specifically and broke the moment the first started
  * front-running it — a test coupled to an implementation rather than to a promise.
+ *
+ * The version after that made the same mistake in the other direction: it waited on AppKit's
+ * modal by tag name. AppKit only ships when a WalletConnect project id is configured, and CI
+ * has no `.env`, so all four of these failed on the first run against a clean checkout —
+ * reporting a broken promise when the promise was intact and being kept by `useEnsureChain`
+ * and the network banner instead. They now accept either affordance.
  */
 
 const WALLET = "0x39A9E829969eE81962D9AD6E33906Fe0967c98de";
@@ -99,6 +105,21 @@ const switchRequests = (page: Page) =>
 const moveToMainnet = (page: Page) =>
   page.evaluate(() => (window as unknown as { __moveToMainnet: () => void }).__moveToMainnet());
 
+/**
+ * The way out of the wrong network, whichever of the two is on screen.
+ *
+ * AppKit raises its own modal when a project id is configured; without one the app's network
+ * banner and wallet button carry a "Switch network" / "Switch to Sepolia" control instead.
+ * Both name the destination and both reach the wallet, which is the whole promise — so the
+ * assertion takes either rather than encoding which deployment it is running against.
+ */
+const fixNetwork = (page: Page) =>
+  page
+    .locator('w3m-modal[class~="open"]')
+    .getByText(/sepolia/i)
+    .first()
+    .or(page.getByRole("button", { name: /switch (network|to sepolia)/i }).first());
+
 test.describe("Network switching", () => {
   /*
    * These run against a live page: connecting through the chooser, waiting for the connection
@@ -114,11 +135,9 @@ test.describe("Network switching", () => {
 
     await moveToMainnet(page);
 
-    // The prompt has to name the chain the app actually needs. "Unsupported network" with no
-    // destination is a dead end wearing a warning label.
-    const prompt = page.locator('w3m-modal[class~="open"]');
-    await expect(prompt).toBeVisible({ timeout: 30000 });
-    await expect(prompt.getByText(/sepolia/i).first()).toBeVisible({ timeout: 15000 });
+    // Whichever mechanism gets there first, it has to name the chain the app actually needs.
+    // "Unsupported network" with no destination is a dead end wearing a warning label.
+    await expect(fixNetwork(page)).toBeVisible({ timeout: 30000 });
   });
 
   test("reaches the wallet as a real switch request", async ({ page }) => {
@@ -128,9 +147,9 @@ test.describe("Network switching", () => {
 
     await moveToMainnet(page);
 
-    const prompt = page.locator('w3m-modal[class~="open"]');
-    await expect(prompt).toBeVisible({ timeout: 30000 });
-    await prompt.getByText(/sepolia/i).first().click();
+    const fix = fixNetwork(page);
+    await expect(fix).toBeVisible({ timeout: 30000 });
+    await fix.click();
 
     // The point of the whole exercise: the wallet is asked, in its own words, to move to the
     // chain Sable runs on. Nothing here is the app pretending to have switched on its behalf.
