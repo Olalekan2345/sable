@@ -100,7 +100,14 @@ const config: HardhatUserConfig = {
     },
   },
   etherscan: {
-    apiKey: { sepolia: ETHERSCAN_API_KEY },
+    /*
+     * A single key, not a per-network map.
+     *
+     * The `{ sepolia: ... }` form targets Etherscan's V1 API, which has been retired — it now
+     * answers every request with "You are using a deprecated V1 endpoint". V2 is one unified
+     * key across every chain, so the per-network shape has nothing left to express.
+     */
+    apiKey: ETHERSCAN_API_KEY,
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS === "true",

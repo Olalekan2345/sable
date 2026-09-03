@@ -8,7 +8,7 @@ import { ConfidentialValue, RevealButton } from "@/components/ui/confidential-va
 import { Badge, Card, PrivacyNote } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import { useReveal } from "@/lib/hooks/use-reveal";
-import { useActiveRound, useRoundCountdown } from "@/lib/hooks/use-rounds";
+import { useActiveRound, useRoundCountdown, type RoundSummary } from "@/lib/hooks/use-rounds";
 import { usePositionHandles } from "@/lib/hooks/use-sable";
 
 /**
@@ -89,6 +89,65 @@ export function ModeCard({ className }: { className?: string }) {
  * be able to see what a round looks like without being nudged or made to feel excluded —
  * and hiding it would leak, by omission, which savers had revealed which mode.
  */
+/**
+ * Where a closed round has got to, in words and as a fraction.
+ *
+ * Each phase advances a public cursor, so this reports the mechanism's real position rather
+ * than a spinner standing in for one. Nothing here is derived from a ciphertext: the counts
+ * are how many accounts have been processed, never which, and never what they hold.
+ *
+ * `participantCount` is the snapshot taken at close, which is exactly the denominator every
+ * phase measures itself against on chain.
+ */
+function settlementProgress(round: RoundSummary): {
+  headline: string;
+  detail: string | null;
+  fraction: number;
+} {
+  const { state, participantCount, eligibilityCursor, ticketCursor, drawCursor, drawPointCount } =
+    round.lifecycle;
+  const settled = Number(round.lifecycle.settleCursor);
+
+  // Guard the denominators: a round that closed with nobody in it completes without ever
+  // moving a cursor, and 0/0 would render as NaN%.
+  const share = (done: number, total: number) => (total > 0 ? Math.min(done / total, 1) : 1);
+
+  switch (state) {
+    case RoundState.Closing:
+      return {
+        headline: "Round closed. Working out who is eligible.",
+        detail: `Eligibility — ${eligibilityCursor} of ${participantCount} savers`,
+        fraction: share(eligibilityCursor, participantCount),
+      };
+    case RoundState.Finalized:
+      return {
+        headline: "Prize pool fixed. Assigning tickets.",
+        detail: `Tickets — ${ticketCursor} of ${participantCount} savers`,
+        fraction: share(ticketCursor, participantCount),
+      };
+    case RoundState.Drawing:
+      return {
+        headline: "Drawing the winning numbers.",
+        detail: `Draw — ${drawCursor} of ${drawPointCount} points`,
+        fraction: share(drawCursor, drawPointCount),
+      };
+    case RoundState.Settling:
+      return {
+        headline: "Allocating prizes.",
+        detail: `Settlement — ${settled} of ${participantCount} savers`,
+        fraction: share(settled, participantCount),
+      };
+    case RoundState.Complete:
+      return {
+        headline: "Results are in. Only you can see whether you won.",
+        detail: null,
+        fraction: 1,
+      };
+    default:
+      return { headline: "Round is being settled.", detail: null, fraction: 0 };
+  }
+}
+
 export function NextDrawCard({ className }: { className?: string }) {
   const { round } = useActiveRound();
   const countdown = useRoundCountdown(round);
@@ -113,6 +172,7 @@ export function NextDrawCard({ className }: { className?: string }) {
   }
 
   const isOpen = round.lifecycle.state === RoundState.Open;
+  const progress = settlementProgress(round);
 
   return (
     <Card className={cn("p-7 sm:p-8", className)}>
@@ -132,9 +192,32 @@ export function NextDrawCard({ className }: { className?: string }) {
             </span>
           </>
         ) : (
-          "Round is being settled."
+          progress.headline
         )}
       </p>
+
+      {/*
+        What is happening right now, while it happens.
+        
+        The card used to say "Round is being settled." for the whole tail of the lifecycle —
+        closing, eligibility, ticketing, the draw and settlement — which can be several minutes
+        and a dozen transactions. A saver refreshing during it had no way to tell progress from
+        a stall, and the honest answer was already on chain: every phase publishes a cursor.
+        
+        These counts are public by design. They say how far the mechanism has got, never who is
+        in it or what anyone holds.
+      */}
+      {!isOpen && progress.detail ? (
+        <div className="mt-4">
+          <p className="text-[13px] text-[var(--color-tertiary)]">{progress.detail}</p>
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-[var(--color-inset)]">
+            <div
+              className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-500"
+              style={{ width: `${Math.round(progress.fraction * 100)}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <dl className="mt-6 space-y-0">
         {[
