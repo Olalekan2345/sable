@@ -80,10 +80,24 @@ test.describe("Assets", () => {
     await connect(page);
     await awaitHoldings(page);
 
-    // Logos are drawn inline rather than loaded, because requesting one image per asset from
-    // a CDN would tell that host exactly which tokens this wallet holds.
-    const remoteImages = await page.locator("main img[src^='http']").count();
-    expect(remoteImages, "no token logo may be fetched from a third party").toBe(0);
+    /*
+     * Marks may be drawn inline or served from this origin, never fetched from anyone else.
+     *
+     * The rule was once "no images at all", which was simply how the marks happened to be
+     * built. The property that actually matters is narrower: requesting one logo per asset
+     * from a CDN would tell that host exactly which tokens this wallet holds, and the request
+     * pattern *is* the holdings. Artwork served from Sable's own origin tells nobody anything.
+     *
+     * So this asserts the origin rather than the absence, and checks resolved `src` values
+     * rather than the attribute — an attribute selector would miss an absolute URL built at
+     * runtime, which is exactly the regression worth catching.
+     */
+    const sources = await page.locator("main img").evaluateAll((images) =>
+      images.map((image) => (image as HTMLImageElement).src),
+    );
+    const origin = new URL(page.url()).origin;
+    const foreign = sources.filter((src) => src !== "" && !src.startsWith(origin) && !src.startsWith("data:"));
+    expect(foreign, "no token logo may be fetched from a third party").toEqual([]);
 
     const unknownMarks = await page.locator("main").getByText("?", { exact: true }).count();
     expect(unknownMarks, "every published asset should resolve to a real mark").toBe(0);

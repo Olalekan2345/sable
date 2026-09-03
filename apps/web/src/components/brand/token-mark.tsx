@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import { cn } from "@/lib/cn";
 
 /**
@@ -40,6 +42,11 @@ interface TokenVisual {
   tint: string;
   /** The glyph colour, chosen per token to clear 4.5:1 against `tint`. */
   ink: string;
+  /**
+   * Supplied artwork, served from this origin. Absent tokens fall back to the glyph disc, so
+   * a new asset works before anyone has drawn it.
+   */
+  image?: string;
   /** Shown to screen readers in place of the decorative chip. */
   label: string;
 }
@@ -49,15 +56,15 @@ interface TokenVisual {
  * and `cUSDCMock` all resolve to the same mark.
  */
 const VISUALS: Record<string, TokenVisual> = {
-  USDC: { glyph: "$", tint: "#2775CA", ink: "#FFFFFF", label: "USDC" },
+  USDC: { glyph: "$", tint: "#2775CA", ink: "#FFFFFF", image: "usdc.jpg", label: "USDC" },
   // Tether's #26A17B manages only 3.25:1 under white; deepened until the glyph reads.
-  USDT: { glyph: "₮", tint: "#14795A", ink: "#FFFFFF", label: "Tether" },
+  USDT: { glyph: "₮", tint: "#14795A", ink: "#FFFFFF", image: "usdt.jpg", label: "Tether" },
   // Gold under white is 2.44:1, unreadable. Dark ink keeps the colour and gains 6.98:1.
-  XAUT: { glyph: "T", tint: "#C0A265", ink: "#241B00", label: "Tether Gold" },
-  WETH: { glyph: "◆", tint: "#3C3C3D", ink: "#FFFFFF", label: "Wrapped Ether" },
-  BRON: { glyph: "B", tint: "#6F3FF5", ink: "#FFFFFF", label: "BRON" },
-  ZAMA: { glyph: "Z", tint: "#FFD209", ink: "#0A0A0A", label: "Zama" },
-  TGBP: { glyph: "£", tint: "#101014", ink: "#5B9BF5", label: "tGBP" },
+  XAUT: { glyph: "T", tint: "#C0A265", ink: "#241B00", image: "xaut.jpg", label: "Tether Gold" },
+  WETH: { glyph: "◆", tint: "#3C3C3D", ink: "#FFFFFF", image: "weth.jpg", label: "Wrapped Ether" },
+  BRON: { glyph: "B", tint: "#6F3FF5", ink: "#FFFFFF", image: "bron.jpg", label: "BRON" },
+  ZAMA: { glyph: "Z", tint: "#FFD209", ink: "#0A0A0A", image: "zama.jpg", label: "Zama" },
+  TGBP: { glyph: "£", tint: "#101014", ink: "#5B9BF5", image: "tgbp.jpg", label: "tGBP" },
 };
 
 const FALLBACK: TokenVisual = {
@@ -116,6 +123,49 @@ export function TokenMark({
 }) {
   const visual = tokenVisual(symbol);
   const { box, text } = SIZES[size];
+
+  /*
+   * Supplied artwork, on a white disc.
+   *
+   * The files are square logos on a white field, drawn for a light interface. Sable's cards
+   * are dark, so pasting them straight in would put a pale rectangle on every row. A white
+   * disc is the honest translation: it keeps the artwork exactly as supplied and gives it a
+   * shape that belongs on a dark surface.
+   *
+   * `contain` rather than `cover`, because the set is not uniform. USDC is a filled circle
+   * that would survive a crop; Ethereum's diamond is tall and narrow and would lose both
+   * points. One rule has to serve every token, and cropping the artwork is the one thing that
+   * cannot be undone by the reader.
+   */
+  if (visual.image) {
+    return (
+      <span
+        role={labelled ? "img" : undefined}
+        aria-label={labelled ? visual.label : undefined}
+        aria-hidden={labelled ? undefined : true}
+        className={cn(
+          "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white",
+          box,
+          className,
+        )}
+        style={{ boxShadow: "inset 0 0 0 1px rgba(10, 10, 10, 0.12)" }}
+      >
+        {/*
+          `next/image` rather than a bare tag, because the supplied files are ~100KB squares of
+          roughly 1240px and these render at 28. Seven of them unoptimised is most of a
+          megabyte to draw a row of icons on a savings page. Next resizes and re-encodes on
+          demand and serves it from this origin, so the privacy property is untouched.
+        */}
+        <Image
+          src={`/tokens/${visual.image}`}
+          alt=""
+          width={72}
+          height={72}
+          className="h-full w-full object-contain p-[2px]"
+        />
+      </span>
+    );
+  }
 
   return (
     <span
