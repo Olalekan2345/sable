@@ -5,6 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useDisconnect } from "wagmi";
 
+import { useWalletGate } from "@/lib/hooks/use-wallet-gate";
+
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { clearDecryptionAuthorization } from "@/lib/fhevm/instance";
@@ -21,6 +23,7 @@ import { useConnectWallet } from "@/lib/hooks/use-connect-wallet";
  */
 export function WalletButton({ className }: { className?: string }) {
   const { address, isConnected } = useAccount();
+  const { isResolving } = useWalletGate();
   const { disconnect } = useDisconnect();
   const walletModal = useWalletModal();
   const connectWallet = useConnectWallet(walletModal.show);
@@ -46,6 +49,24 @@ export function WalletButton({ className }: { className?: string }) {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [menuOpen]);
+
+  /*
+   * While the stored session is being restored, say nothing rather than "Connect wallet".
+   *
+   * This button is on every screen, so it was the most visible symptom of treating
+   * `!isConnected` as "disconnected": it flipped to Connect on load and back to the address a
+   * moment later, on every page, which looks exactly like a connection being dropped and
+   * re-established. A disabled placeholder holds the same space and makes no claim.
+   */
+  if (isResolving) {
+    return (
+      <div className={cn("flex flex-col items-end gap-1", className)}>
+        <Button size="sm" variant="secondary" disabled className="opacity-60">
+          <span className="animate-pulse">Reconnecting…</span>
+        </Button>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (

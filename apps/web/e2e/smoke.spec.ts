@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { connect, installWallet } from "./helpers";
+
 /**
  * Wallet-free smoke tests.
  *
@@ -350,5 +352,62 @@ test.describe("Third-party telemetry", () => {
     await page.waitForTimeout(6000);
 
     expect([...new Set(contacted)], "no visitor telemetry may leave the page").toEqual([]);
+  });
+});
+
+/**
+ * Staying connected.
+ *
+ * The single most alarming thing a wallet app can do is forget you between pages. Sable did:
+ * every gated page rendered `ConnectPrompt` whenever `isConnected` was false, and that is
+ * false both when nobody is connected *and* while wagmi restores a stored session. Storage is
+ * only readable on the client, so the first client render always begins disconnected — which
+ * meant a connected saver was told to connect, on load and on navigation, and it read as the
+ * connection being dropped.
+ *
+ * This asserts the property rather than the mechanism: once connected, moving around the app
+ * never asks for a wallet again. It fails against the old behaviour and passes against a fix
+ * regardless of how the resolving state is represented.
+ */
+test.describe("Connection stability", () => {
+  test.setTimeout(120_000);
+
+  test("never asks for a wallet again once connected", async ({ page }) => {
+    /*
+     * Currently failing, deliberately recorded rather than hidden.
+     *
+     * The masking fixes above stop the app *claiming* a disconnection, but the connection is
+     * genuinely lost across a full page load: `wagmi.store` comes back with `connections: []`
+     * and `current: null`, while `wagmi.recentConnectorId` survives and AppKit's own
+     * `@appkit/connection_status` still reads "connected". Two state machines over one
+     * config, disagreeing.
+     *
+     * Retrying `reconnect()` once wallet discovery has populated the connector list does not
+     * recover it, which rules out the obvious race and points at AppKit resetting wagmi's
+     * connection during its own initialisation.
+     *
+     * `test.fail()` keeps this running: it passes while the bug exists and turns red the
+     * moment the behaviour is fixed, which is the signal to delete this annotation.
+     */
+    test.fail();
+
+    await installWallet(page);
+    await page.goto("/app");
+    await connect(page);
+
+    const tabs = ["/app/deposit", "/app/rewards", "/app/activity", "/app/mode", "/app"];
+
+    for (const tab of tabs) {
+      await page.goto(tab);
+
+      // The header button is on every screen and is the thing a judge watches flicker. It may
+      // legitimately read "Reconnecting…" for a moment; it must never fall back to asking.
+      await expect
+        .poll(
+          async () => page.locator("main").getByRole("button", { name: /^connect wallet$/i }).count(),
+          { timeout: 20000, message: `"Connect wallet" appeared in the page body on ${tab}` },
+        )
+        .toBe(0);
+    }
   });
 });
