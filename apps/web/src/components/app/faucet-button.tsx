@@ -4,6 +4,7 @@ import { deployment, isWrappedAsset } from "@sable/config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 
+import { TokenMark } from "@/components/brand/token-mark";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { FAUCET_AMOUNT, useFaucet } from "@/lib/hooks/use-faucet";
@@ -60,21 +61,41 @@ export function FaucetButton() {
   return (
     <Button
       size="sm"
-      variant="ghost"
+      /*
+       * Primary, not ghost.
+       *
+       * A new saver cannot do anything at all until they hold the underlying token, so this is
+       * the first control that matters and it was styled as the least important thing on the
+       * bar — transparent, muted text, indistinguishable from a link. Being quiet is right for
+       * a control people already know they need; this one has to be found by someone who does
+       * not yet know they need it.
+       */
+      variant="primary"
       onClick={onClaim}
       loading={isBusy}
       disabled={!available}
-      className="shrink-0"
+      className="shrink-0 gap-2"
       /*
        * Named explicitly, because the visible text shortens on a narrow bar and the accessible
        * name would otherwise shorten with it. A sighted visitor loses two words; a screen
        * reader user would have lost the meaning, hearing "Tokens" with no verb in it.
+       *
+       * It keeps the words "test tokens" and adds the symbol rather than replacing them. The
+       * symbol alone would be the better name in isolation, but this control is the one a
+       * newcomer is told to look for by that phrase, and it is what the suite asserts is
+       * reachable on every page.
        */
-      aria-label="Get test tokens"
+      aria-label={`Get test tokens (${symbol})`}
     >
-      <span className="hidden sm:inline">Get test tokens</span>
+      {/*
+        The mark is decorative here: the symbol is written beside it, and announcing the token
+        twice would only add noise. It names *which* token the button dispenses, which the
+        words alone did not — "test tokens" could have meant any of the assets listed.
+      */}
+      <TokenMark symbol={symbol} size="sm" className="-ml-0.5 h-5 w-5" />
+      <span className="hidden sm:inline">Get {symbol}</span>
       <span aria-hidden="true" className="sm:hidden">
-        Tokens
+        Get
       </span>
     </Button>
   );
