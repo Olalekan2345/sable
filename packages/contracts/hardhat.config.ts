@@ -22,10 +22,19 @@ dotenv.config();
 /*
  * Default endpoint.
  *
- * Was `ethereum-sepolia-rpc.publicnode.com`, which drops sockets partway through a run of
- * transactions — a batch of round configurations failed at seven of twenty-eight, and a
- * deposit failed twice in a row before the same call succeeded elsewhere. Override with
- * `SEPOLIA_RPC_URL`; a dedicated endpoint is worth having for anything that writes.
+ * Three public endpoints have failed here in different ways, so this is the survivor rather
+ * than a preference:
+ *
+ * - `publicnode` drops sockets partway through a run of transactions — a batch of round
+ *   configurations died at seven of twenty-eight.
+ * - `thirdweb` returns 429 under the burst a draw produces; it killed a keeper run mid-
+ *   `DRAWING` and then killed the local retry too.
+ * - `rpc.sepolia.org` served stale state, still reporting a round as `CLOSING` well after it
+ *   had completed — the worst failure of the three, because it looks like data.
+ *
+ * Set `SEPOLIA_RPC_URL` to a dedicated endpoint for anything that writes. A free Alchemy or
+ * Infura key is enough, and it is the difference between a draw that completes and one that
+ * has to be resumed by hand.
  */
 /*
  * `||`, not `??`.
@@ -35,7 +44,7 @@ dotenv.config();
  * every run died on `HH117: Empty string for network or forking URL`. An unset variable and
  * a variable set to nothing mean the same thing here, and both should fall back.
  */
-const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://11155111.rpc.thirdweb.com";
+const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || "https://sepolia.gateway.tenderly.co";
 const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY ?? "";
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? "";
 

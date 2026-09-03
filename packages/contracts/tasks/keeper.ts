@@ -36,6 +36,18 @@ task("rounds:schedule", "Configures a run of future rounds (admin)")
   .addOptionalParam("ticketBits", "Ticket domain exponent k in 2^k", 24, types.int)
   .addOptionalParam("maxParticipants", "Participants scored per round", 10, types.int)
   .addOptionalParam("startIn", "Seconds until the first round opens", 0, types.int)
+  /*
+   * Weight per ticket, which has to move with the round length.
+   *
+   * Weight is `balance x minutes held`, so a one-hour round accrues a sixth of what a
+   * six-hour one does. Left at 1e6, an hour-long round needs roughly 28,000 tokens per saver
+   * to reach the per-saver ticket cap — and savers below the cap leave the ticket domain
+   * partly unallocated, which is what makes a jackpot roll forward instead of paying out.
+   *
+   * Lower it for shorter rounds. At 1e5 an hour-long round caps a saver at about 5,600
+   * tokens, which one faucet press covers.
+   */
+  .addOptionalParam("weightPerTicket", "Weight units per ticket", 1_000_000, types.int)
   .setAction(async (args, hre) => {
     const sable = await vault(hre);
     const duration = Number(args.duration);
@@ -51,7 +63,16 @@ task("rounds:schedule", "Configures a run of future rounds (admin)")
     }
 
     console.log(`\nScheduling ${args.count} round(s) of ${duration / 3600}h`);
-    console.log(`  first opens ${stamp(opensAt)}`);
+    console.log(`  first opens      ${stamp(opensAt)}`);
+    console.log(`  ticket domain    2^${args.ticketBits}, ${args.maxParticipants} participant slots`);
+
+    // The numbers that decide whether prizes actually land, stated up front rather than left
+    // to be inferred from an empty round.
+    const capTickets = 2 ** Number(args.ticketBits) / Number(args.maxParticipants);
+    const capTokens = (capTickets * Number(args.weightPerTicket)) / (duration / 60) / 1e6;
+    console.log(`  per-saver cap    ${capTickets.toLocaleString()} tickets`);
+    console.log(`  reached at       ~${capTokens.toFixed(0)} tokens held all round`);
+    console.log(`  full allocation  needs ${args.maxParticipants} savers at that cap`);
 
     for (let i = 0; i < Number(args.count); i += 1) {
       const config = {
@@ -59,7 +80,7 @@ task("rounds:schedule", "Configures a run of future rounds (admin)")
         closesAt: opensAt + duration,
         ticketBits: Number(args.ticketBits),
         maxParticipants: Number(args.maxParticipants),
-        weightPerTicket: 1_000_000n,
+        weightPerTicket: BigInt(args.weightPerTicket),
         jackpotWinnerCount: 1,
         midWinnerCount: 3,
         smallWinnerCount: 10,

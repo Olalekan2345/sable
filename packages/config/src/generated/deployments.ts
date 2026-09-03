@@ -10,18 +10,18 @@ export const deployments: Record<string, SableDeployment> = {
   "sepolia": {
     "network": "sepolia",
     "chainId": 11155111,
-    "deployedAt": "2026-09-03T06:21:37.894Z",
+    "deployedAt": "2026-09-03T13:12:50.328Z",
     "deployer": "0x39A9E829969eE81962D9AD6E33906Fe0967c98de",
     "contracts": {
       "Sable": {
-        "address": "0xdECF4b97E33F13614f36934F889d675f4d2273D8",
-        "txHash": "0x7197f0017c7582763d7e805889098c65bd85f3d23559867e18e8162e0eb89328",
-        "blockNumber": 11624800
+        "address": "0x6bdd702c44Da01b12997724DA7960555B2DF1c0b",
+        "txHash": "0x770d5ba08c7cfbb3a93c18ce589b73ae930731a9c4371638c887c3e00c557030",
+        "blockNumber": 11626791
       },
       "YieldAdapter": {
-        "address": "0xED741dDa73Fe8c58714c51Be462EBd1F8E1c4A61",
-        "txHash": "0x66b9c66419ac4b642a5ad5bca34db00a815536fe3f725433a13594e1bec3a8f6",
-        "blockNumber": 11624798
+        "address": "0x40eFC3209626CAa134ec77B7bF5a301121918EDf",
+        "txHash": "0xbdc0bcc12a9edf6e9fe8ee75cf7d7a7ac227aade8d1d3c19f987ed704770a4bd",
+        "blockNumber": 11626790
       }
     },
     "asset": {
