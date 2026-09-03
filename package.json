@@ -1,0 +1,29 @@
+{
+  "name": "sable",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sable — a confidential prize-linked savings protocol built on Zama FHE.",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20.18.0"
+  },
+  "scripts": {
+    "contracts:compile": "pnpm --filter @sable/contracts compile",
+    "contracts:test": "pnpm --filter @sable/contracts test",
+    "contracts:coverage": "pnpm --filter @sable/contracts coverage",
+    "deploy:sepolia": "pnpm --filter @sable/contracts deploy:sepolia",
+    "verify:sepolia": "pnpm --filter @sable/contracts verify:sepolia",
+    "sync:abis": "pnpm --filter @sable/contracts sync:abis",
+    "web:dev": "pnpm --filter @sable/web dev",
+    "web:build": "pnpm --filter @sable/web build",
+    "indexer:dev": "pnpm --filter @sable/indexer dev",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "^5.9.3"
+  }
+}

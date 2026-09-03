@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref — a stale red build on an old commit
+# helps nobody.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20.18"
+  PNPM_VERSION: "9.15.4"
+
+jobs:
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Compile
+        run: pnpm contracts:compile
+
+      # Guards the version matrix documented in docs/ZAMA_IMPLEMENTATION_NOTES.md.
+      # @fhevm/solidity 0.13.x does not compile against the current Hardhat plugin, and
+      # the failure is confusing enough that it is worth catching explicitly.
+      - name: Verify the FHE version pin
+        run: |
+          INSTALLED=$(node -p "require('@fhevm/solidity/package.json').version")
+          if [ "$INSTALLED" != "0.11.1" ]; then
+            echo "::error::@fhevm/solidity is $INSTALLED, expected 0.11.1."
+            echo "See docs/ZAMA_IMPLEMENTATION_NOTES.md §2 before changing this."
+            exit 1
+          fi
+          echo "@fhevm/solidity $INSTALLED"
+
+      - name: Test
+        run: pnpm contracts:test
+
+      - name: Check contract size against EIP-170
+        run: |
+          node -e "
+            const fs = require('fs');
+            const a = JSON.parse(fs.readFileSync('packages/contracts/artifacts/contracts/Sable.sol/Sable.json','utf8'));
+            const size = (a.deployedBytecode.length - 2) / 2;
+            const pct = ((size / 24576) * 100).toFixed(1);
+            console.log('Sable: ' + size + ' bytes (' + pct + '% of limit)');
+            if (size > 24576) { console.error('::error::Sable exceeds the EIP-170 limit'); process.exit(1); }
+          "
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The web app imports generated ABIs, so contracts must be compiled and exported
+      # before it can typecheck.
+      - name: Generate ABIs
+        run: |
+          pnpm contracts:compile
+          pnpm sync:abis
+
+      - name: Typecheck
+        run: pnpm --filter @sable/config typecheck && pnpm --filter @sable/web typecheck
+
+      - name: Build
+        run: pnpm --filter @sable/web build
+
+      - name: Verify the relayer SDK is served, not bundled
+        run: |
+          # Bundling the SDK's ~5.4MB of WASM takes the build from 43s to >20 minutes, so
+          # it is copied into public/ and loaded at runtime. If this asset is missing the
+          # app builds fine and then fails to encrypt in the browser — worth catching here.
+          test -f apps/web/public/relayer-sdk/relayer-sdk-js.umd.cjs \
+            || { echo "::error::Relayer SDK bundle missing from public/"; exit 1; }
+          test -f apps/web/public/relayer-sdk/tfhe_bg.wasm \
+            || { echo "::error::TFHE wasm missing from public/"; exit 1; }
+          echo "Relayer SDK assets present"
+
+  e2e:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate ABIs
+        run: |
+          pnpm contracts:compile
+          pnpm sync:abis
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @sable/web exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm --filter @sable/web build
+
+      # Covers the wallet-free surfaces, and asserts the no-fake-data and
+      # no-overclaiming rules that a build alone cannot check.
+      - name: Run browser tests
+        run: pnpm --filter @sable/web exec playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+  indexer:
+    name: Indexer
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate ABIs
+        run: |
+          pnpm contracts:compile
+          pnpm sync:abis
+
+      - name: Typecheck
+        run: pnpm --filter @sable/indexer typecheck
+
+      # The indexer must never gain the ability to store confidential data. This is a
+      # structural guarantee in docs/PRIVACY_MODEL.md, so it is enforced rather than
+      # trusted: a future migration adding a balance column fails the build.
+      - name: Assert the schema stores no confidential fields
+        run: |
+          FORBIDDEN="balance mode weight ticketStart ticketEnd reward"
+          FAILED=0
+          for field in $FORBIDDEN; do
+            if grep -qiE "\"(${field})\"|${field}:\s*(bigint|integer|text)\(" apps/indexer/src/schema.ts; then
+              echo "::error::Indexer schema appears to define a confidential column: ${field}"
+              FAILED=1
+            fi
+          done
+          # Handle columns are fine — they are public identifiers, not values.
+          exit $FAILED

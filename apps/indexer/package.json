@@ -1,0 +1,31 @@
+{
+  "name": "@sable/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Public-metadata indexer for the Sable protocol. Indexes no confidential data.",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "index": "tsx src/main.ts --once",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@sable/config": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.5",
+    "postgres": "^3.4.9",
+    "viem": "^2.56.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
+  }
+}

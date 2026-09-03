@@ -1,0 +1,114 @@
+name: Keeper
+
+# Advances the round state machine on Sepolia: opens each scheduled round when its window
+# arrives, and closes, draws and settles the one that has finished.
+#
+# ## Why this can run in public CI at all
+#
+# Every step the keeper calls is permissionless — `openRound`, `closeRound`, the eligibility,
+# ticketing, draw and settlement batches, `completeRound`. None of them checks a role. The
+# account below needs gas and nothing else: it cannot touch the reserve, cannot configure a
+# round, cannot pause anything, and cannot see any saver's balance. A leaked keeper key lets
+# somebody advance rounds that were going to advance anyway.
+#
+# That is the whole reason this design was chosen over an owner-operated cron. Use a throwaway
+# key with a little Sepolia ETH in it. **Never the deployer key** — that one holds ADMIN_ROLE
+# and the reserve.
+#
+# ## Setup
+#
+#   1. Generate a fresh key:  `node -e "console.log(require('ethers').Wallet.createRandom().privateKey)"`
+#   2. Send it ~0.05 Sepolia ETH. A full round costs roughly 0.002 ETH at present gas.
+#   3. Settings → Secrets and variables → Actions → New repository secret:
+#        KEEPER_PRIVATE_KEY   the key from step 1
+#        SEPOLIA_RPC_URL      optional; a dedicated endpoint (see below)
+#
+# ## Cadence
+#
+# Every fifteen minutes, against six-hour rounds. That looks disproportionate until you notice
+# what the job does when there is nothing to do: two `eth_call`s and an exit. The frequency
+# buys punctuality, not throughput — GitHub's scheduler runs late under load, sometimes by
+# half an hour, and a round that closes promptly is the difference between a prize page that
+# looks alive and one that looks abandoned.
+#
+# Missing runs is safe regardless. The keeper is a convenience, not a dependency: an
+# unadvanced round stays open, deposits keep working, and the next invocation — cron, manual
+# dispatch, or any impatient saver running the same task — completes it.
+#
+# GitHub disables scheduled workflows on repositories with no activity for 60 days, and sends
+# a warning first. Re-enable from the Actions tab.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# Two keepers racing would waste gas rather than break anything — the loser's transactions
+# revert against a state that has already moved — but there is no reason to pay for it.
+concurrency:
+  group: keeper
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  advance:
+    name: Advance rounds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # A fork inherits the schedule but not the secret, so it would fail every fifteen minutes
+    # forever. Skip there; a maintainer can still dispatch it by hand.
+    if: github.event_name == 'workflow_dispatch' || github.event.repository.fork == false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.15.4"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.18"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Tasks resolve contracts through typechain, which needs artifacts on disk.
+      - name: Compile
+        run: pnpm contracts:compile
+
+      - name: Check the keeper key is configured
+        env:
+          KEEPER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEEPER_PRIVATE_KEY" ]; then
+            echo "::error::KEEPER_PRIVATE_KEY is not set. See the header of this workflow."
+            exit 1
+          fi
+          echo "Keeper key present"
+
+      - name: Advance
+        working-directory: packages/contracts
+        env:
+          # The deploy key is deliberately absent from this environment. Hardhat reads
+          # DEPLOYER_PRIVATE_KEY for the Sepolia signer, so the keeper's key is supplied
+          # under that name — the account it produces holds no role either way.
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
+          # publicnode drops sockets partway through a run of transactions, which cost a
+          # scheduled batch two thirds of its work. Override with a dedicated endpoint.
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+        run: pnpm exec hardhat keeper --network sepolia
+
+      # A transient RPC failure mid-round leaves the state machine part-advanced, which is
+      # safe — cursors are on-chain and the next pass resumes from them — but worth retrying
+      # once rather than waiting a quarter of an hour.
+      - name: Retry once on failure
+        if: failure()
+        working-directory: packages/contracts
+        env:
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.KEEPER_PRIVATE_KEY }}
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+        run: pnpm exec hardhat keeper --network sepolia
