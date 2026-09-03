@@ -73,7 +73,10 @@ describe("mark legibility", () => {
     const h = hex.replace("#", "");
     const channels = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
     const linear = channels.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+    // Destructured with defaults rather than indexed: `noUncheckedIndexedAccess` types every
+    // element as possibly undefined, and a non-null assertion would only hide that.
+    const [r = 0, g = 0, b = 0] = linear;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   };
 
   const contrast = (a: string, b: string) => {
