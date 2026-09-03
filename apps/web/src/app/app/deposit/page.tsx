@@ -253,6 +253,25 @@ export default function DepositPage() {
                 className="mt-5"
               />
 
+              {/*
+                Why a decline is worth a second sentence here.
+
+                With the balance still encrypted the page cannot check affordability, so an
+                over-large amount reaches the wallet intact — where simulation predicts the
+                revert and warns. Backing out of that warning is the sensible response, and it
+                arrives here as a plain decline, which describes the click and not the cause.
+
+                Only shown when the balance is unrevealed, because that is the only state in
+                which the app failed to catch it first.
+              */}
+              {tx.stage === "error" && revealedWallet === null && tx.error?.startsWith("You declined") ? (
+                <p className="mt-3 text-[12px] leading-relaxed text-[var(--color-tertiary)]">
+                  If your wallet warned the transaction would fail, the amount is likely more
+                  than this wallet holds — nothing was sent either way. Reveal your balance
+                  above to check it and enable Max.
+                </p>
+              ) : null}
+
               <PrivacyNote className="mt-6">
                 The amount is never sent to a server, stored, or written to the URL.
               </PrivacyNote>
