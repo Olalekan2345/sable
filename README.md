@@ -698,6 +698,12 @@ record; no configuration is needed after a clone.
 
 ---
 
+## 20. License
+
+MIT. See [LICENSE](LICENSE).
+
+---
+
 <div align="center">
 
 **Sable** — Save privately. Win fairly.
