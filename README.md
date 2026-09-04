@@ -8,8 +8,10 @@ A confidential prize-linked savings protocol built on Zama FHE.
 Deposit privately, and **privately choose** whether your yield compounds or funds a
 verifiable prize draw.
 
+### [**Try it live →**](https://sable-inky.vercel.app)
+
 [Ethereum Sepolia](https://sepolia.etherscan.io) · [Zama Protocol](https://zama.ai) ·
-134 contract tests · 97 browser tests · 21 unit tests
+134 contract tests · 101 browser tests · 21 unit tests
 
 </div>
 
@@ -40,6 +42,32 @@ a saver's finances does.
 savings earn time-weighted entry into the draw. **Steady is the addition**, and it exists
 because FHE makes it possible; see below for why a *private* opt-in is a different product
 from a public one.
+
+---
+
+## Live deployment
+
+| | |
+| --- | --- |
+| **App** | **https://sable-inky.vercel.app** |
+| Network | Ethereum Sepolia (11155111) |
+| `Sable` | [`0x6bdd702c44Da01b12997724DA7960555B2DF1c0b`](https://sepolia.etherscan.io/address/0x6bdd702c44Da01b12997724DA7960555B2DF1c0b#code) — source verified |
+| `SableReserveYieldAdapter` | [`0x40eFC3209626CAa134ec77B7bF5a301121918EDf`](https://sepolia.etherscan.io/address/0x40eFC3209626CAa134ec77B7bF5a301121918EDf#code) — source verified |
+| Asset | [`cUSDCMock`](https://sepolia.etherscan.io/address/0x7c5BF43B851c1dff1a4feE8dB225b87f2C223639) — Zama's published ERC-7984 wrapper |
+| Underlying | [`USDCMock`](https://sepolia.etherscan.io/address/0x9b5Cd13b8eFbB58Dc25A05CF411D8056058aDFfF) — mintable by anyone |
+
+Nothing is required to look around: the landing page, the public
+[draw ledger](https://sable-inky.vercel.app/draws) and every completed round are readable
+without a wallet.
+
+**To use it**, connect a wallet on Sepolia and press **Get test tokens** in the app bar — it
+mints 10,000 `USDCMock` to you, with no cooldown and no allowlist. Shield some into
+`cUSDCMock`, deposit, and you are in the next draw; new positions open in Lucky, so no further
+step is needed.
+
+Rounds are opened and settled by a keeper on a schedule, but nothing waits for it: every
+lifecycle call is permissionless, and the overview offers a **Start round** button when none
+is open.
 
 ---
 
@@ -512,6 +540,27 @@ npx hardhat keeper --network sepolia             # permissionless: opens, closes
 `keeper` does whatever is currently possible and exits, so it is safe to run on a cron or by
 hand. `.github/workflows/keeper.yml` runs it every fifteen minutes.
 
+### Deployment and operations scripts
+
+Every one lives in [`packages/contracts/tasks/`](packages/contracts/tasks/) and is a Hardhat
+task, so `--help` works on all of them.
+
+| Command | What it does | Who can run it |
+| --- | --- | --- |
+| `pnpm deploy:sepolia` | Deploys the adapter and vault in dependency order, wires them together, and writes `deployments/sepolia.json` | deployer |
+| `pnpm sync:abis` | Exports ABIs and addresses into `@sable/config`. **Not optional** — it is the only writer of what the app and indexer read | — |
+| `pnpm verify:sepolia` | Publishes source to Etherscan | needs `ETHERSCAN_API_KEY` |
+| `reserve:fund --amount N` | Mints the public underlying, wraps it, and funds the yield reserve | admin |
+| `yield:rate --bps N` | Sets the annual rate the reserve pays | admin |
+| `rounds:schedule` | Lays out a calendar of future rounds | admin |
+| `round:demo --minutes N` | One short round starting now, for a walkthrough | admin |
+| `keeper` | Opens, closes, draws and settles whatever is due | **anyone with gas** |
+| `faucet --amount N` | Mints test `USDCMock` | anyone |
+| `demo:deposit --amount N` | Encrypts and deposits from the CLI, exactly as the browser does | anyone |
+
+A full walkthrough, including the HCU-derived batch sizes and what to check after deploying,
+is in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ---
 
 ## 13. Demo flow
@@ -675,26 +724,17 @@ Stated plainly rather than left to be discovered:
 - **Yield is sponsor-funded, not sourced from a market.** See §6.
 - **Small anonymity sets.** With few participants, aggregates and timing correlate more
   strongly with individuals than encryption alone suggests.
-- **Source not yet verified on Etherscan.** The contracts are live and their bytecode is
-  reproducible from this repository with `pnpm contracts:compile`, but publishing the source
-  needs an `ETHERSCAN_API_KEY`, which is not configured. Until it is, reading the deployed
-  code means compiling it yourself.
+- **Yield is a mock, and deliberately so.** No lending market on Sepolia pays a real return on
+  a confidential token, so the rate is set by an admin and paid from a funded reserve. See §6:
+  the adapter refuses to credit more than the reserve provably covers, which is what keeps
+  "sponsored yield" from quietly becoming an IOU.
 - **The keeper needs a secret before it runs.** `.github/workflows/keeper.yml` is scheduled
   but skips without `KEEPER_PRIVATE_KEY`. Rounds still advance — anybody can run the task —
   but they will not advance *on time* until that is set.
 
-### Deployed on Sepolia
-
-| Contract | Address |
-| --- | --- |
-| `Sable` | [`0xdECF4b97E33F13614f36934F889d675f4d2273D8`](https://sepolia.etherscan.io/address/0xdECF4b97E33F13614f36934F889d675f4d2273D8) |
-| `ReserveYieldAdapter` | [`0xED741dDa73Fe8c58714c51Be462EBd1F8E1c4A61`](https://sepolia.etherscan.io/address/0xED741dDa73Fe8c58714c51Be462EBd1F8E1c4A61) |
-| `cUSDCMock` (Zama's) | [`0x7c5BF43B851c1dff1a4feE8dB225b87f2C223639`](https://sepolia.etherscan.io/address/0x7c5BF43B851c1dff1a4feE8dB225b87f2C223639) |
-| `USDCMock` (Zama's) | [`0x9b5Cd13b8eFbB58Dc25A05CF411D8056058aDFfF`](https://sepolia.etherscan.io/address/0x9b5Cd13b8eFbB58Dc25A05CF411D8056058aDFfF) |
-
-The reserve is funded with 1,000,000 cUSDCMock at 5%/yr, and a calendar of twenty-eight
-six-hour rounds is scheduled. The app reads these addresses from the generated deployment
-record; no configuration is needed after a clone.
+Addresses are at the top of this file. The reserve is funded with 1,000,000 cUSDCMock, and a
+calendar of rounds is scheduled ahead. The app reads the addresses from the generated
+deployment record, so a fresh clone needs no configuration.
 
 ---
 

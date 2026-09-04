@@ -390,7 +390,18 @@ test.describe("Connection stability", () => {
      * harsher case — the provider remounts and must restore from storage — and it is covered
      * separately below, because conflating the two hid which one was actually broken.
      */
-    for (const tab of ["Deposit", "Rewards", "Activity", "Yield mode", "Overview"]) {
+    /*
+     * Tabs both navs actually carry, under the labels each one uses.
+     *
+     * The bottom bar is `NAV.slice(0, 4)` and strips " mode" from its labels, so "Yield mode"
+     * exists only in the sidebar and "Rewards" only past the fourth item. Asking for those on
+     * a phone viewport found a link that was in the DOM but hidden, and the click waited for
+     * a visibility that never came — a two-minute timeout dressed up as a connection failure.
+     *
+     * The first four are shared, which is enough: this is testing that the connection
+     * survives navigation, not that every route is reachable.
+     */
+    for (const tab of ["Assets", "Deposit", "Withdraw", "Overview"]) {
       /*
        * The visible one. Both navs are in the DOM at every width — a sidebar and a phone bar
        * — so `.first()` picks whichever comes first in source order, which on a narrow
