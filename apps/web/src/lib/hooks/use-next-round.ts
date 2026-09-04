@@ -38,8 +38,8 @@ export function useNextOpenableRound() {
   const idle = Number(activeRoundId) === 0;
   const total = Number(roundCount);
 
-  // Ascending, because the earliest scheduled round is the one whose turn it is. `useAllRounds`
-  // walks the other way for display, where newest-first is what a reader wants.
+  // Ascending, so ties resolve to the earliest. `useAllRounds` walks the other way for
+  // display, where newest-first is what a reader wants.
   const ids = useMemo(
     () => (idle ? Array.from({ length: total }, (_, index) => index + 1) : []),
     [idle, total],
@@ -64,26 +64,45 @@ export function useNextOpenableRound() {
   const round = (() => {
     if (!enabled || !data) return null;
 
+    type Candidate = { id: number; opensAt: number; closesAt: number; openable: boolean };
+    let live: Candidate | null = null;
+    let stale: Candidate | null = null;
+    let upcoming: Candidate | null = null;
+
     for (let index = 0; index < ids.length; index += 1) {
       const state = data[index * 2]?.result as { state: number } | undefined;
       const config = data[index * 2 + 1]?.result as { opensAt: bigint; closesAt: bigint } | undefined;
       if (!state || !config) continue;
       if (Number(state.state) !== RoundState.Scheduled) continue;
 
+      const opensAt = Number(config.opensAt);
+      const closesAt = Number(config.closesAt);
+      const candidate: Candidate = { id: ids[index] as number, opensAt, closesAt, openable: now >= opensAt };
+
       /*
-       * A round cannot be opened before its window. Returning it anyway, with `openable`
-       * false, lets the interface say *when* rather than simply offering nothing — the
-       * difference between "not yet, at 14:17" and an empty card.
+       * A round whose window is *current* beats one whose window has already elapsed.
+       *
+       * `openRound` imposes no ordering — any scheduled round past its `opensAt` can be
+       * opened — so picking the lowest id was a choice, not a constraint, and a poor one once
+       * the calendar fell behind. It offered rounds whose windows had expired, which open and
+       * are instantly closable: no countdown, no time to deposit, and a draw over a window
+       * nobody was told about.
+       *
+       * Preferring a live window gives the round the interface promises: a clock ticking down
+       * to a draw. Elapsed rounds remain the fallback, since running the backlog is better
+       * than stalling on it.
        */
-      return {
-        id: ids[index] as number,
-        opensAt: Number(config.opensAt),
-        closesAt: Number(config.closesAt),
-        openable: now >= Number(config.opensAt),
-      };
+      if (now >= opensAt && now < closesAt) {
+        if (!live) live = candidate;
+      } else if (now >= closesAt) {
+        if (!stale) stale = candidate;
+      } else if (!upcoming) {
+        upcoming = candidate;
+      }
     }
 
-    return null;
+    // Nothing openable yet: name the soonest, so the card can say when rather than nothing.
+    return live ?? stale ?? upcoming;
   })();
 
   return { round, isLoading, refetch };
