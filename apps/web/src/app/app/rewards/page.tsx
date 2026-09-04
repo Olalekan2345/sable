@@ -1,6 +1,6 @@
 "use client";
 
-import { RoundState, addresses, formatAmount, formatTimestamp } from "@sable/config";
+import { RoundState, assetSymbol, formatAmount, formatTimestamp } from "@sable/config";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 
@@ -8,10 +8,8 @@ import { ConnectPrompt } from "@/components/app/connect-prompt";
 import { RewardsSummary } from "@/components/app/rewards-summary";
 import { ConfidentialValue, RevealButton } from "@/components/ui/confidential-value";
 import { Card, EmptyState, PageHeader, PrivacyNote } from "@/components/ui/primitives";
-import { useReveal } from "@/lib/hooks/use-reveal";
-import { useAllRounds } from "@/lib/hooks/use-rounds";
-import { useSableContract } from "@/lib/hooks/use-sable";
-import { useReadContract } from "wagmi";
+import { useRoundPayout } from "@/lib/hooks/use-round-payout";
+import { useAllRounds, type RoundSummary } from "@/lib/hooks/use-rounds";
 
 /**
  * Rewards.
@@ -93,14 +91,15 @@ function RoundHistory() {
       <div className="px-7 pt-7 sm:px-8">
         <p className="text-eyebrow">Your rounds</p>
         <p className="mt-2 max-w-[62ch] text-[13px] leading-relaxed text-[var(--color-tertiary)]">
-          Your stake in each settled draw, decryptable only by you. Prize figures for a round are
-          public — open it to see what it paid and whether the jackpot was won.
+          What each settled draw paid you. Revealing decrypts your ticket range for that round
+          and works out which of its winning numbers fell inside it — nobody else can do this
+          for your wallet, and you cannot do it for theirs.
         </p>
       </div>
 
       <ul className="mt-5">
         {settled.map((round) => (
-          <RoundHistoryRow key={round.id} roundId={round.id} closedAt={round.lifecycle.closedAt} />
+          <RoundHistoryRow key={round.id} round={round} />
         ))}
       </ul>
 
@@ -114,9 +113,10 @@ function RoundHistory() {
       <div className="border-t border-[var(--color-hairline)] px-7 py-5 sm:px-8">
         <PrivacyNote className="items-start">
           <span>
-            Prizes settle into a single running total, so winnings cannot be split by round —
-            not by you, and not by anyone else. Your stake in each draw is per-round and
-            private; the amount you have won is the total above.
+            Each figure is recomputed in your browser from the round&rsquo;s published draw
+            points and prize tiers, checked against your own ticket range — the one input only
+            you can decrypt. The contract stores a single running total rather than a
+            per-round record, so this is that total broken down, not a second source of truth.
           </span>
         </PrivacyNote>
       </div>
@@ -124,22 +124,15 @@ function RoundHistory() {
   );
 }
 
-function RoundHistoryRow({ roundId, closedAt }: { roundId: number; closedAt: bigint }) {
-  const { address } = useAccount();
-  const sable = useSableContract();
+function RoundHistoryRow({ round }: { round: RoundSummary }) {
+  const roundId = round.id;
+  const closedAt = round.lifecycle.closedAt;
 
-  const { data: weightHandle } = useReadContract({
-    ...sable,
-    functionName: "confidentialWeightOf",
-    args: address ? [BigInt(roundId), address] : undefined,
-    query: { enabled: Boolean(sable.address && address) },
-  });
-
-  const reveal = useReveal(weightHandle as `0x${string}` | undefined, {
-    contractAddress: addresses.sable ?? undefined,
-  });
-
-  const weight = typeof reveal.value === "bigint" ? reveal.value : null;
+  /*
+   * Reveals the ticket range and recomputes what this round paid, using the same expression
+   * the contract settles with. The private half is the range; everything else is published.
+   */
+  const payout = useRoundPayout(round);
 
   return (
     <li className="flex flex-col gap-3 border-t border-[var(--color-hairline)] px-7 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
@@ -152,10 +145,12 @@ function RoundHistoryRow({ roundId, closedAt }: { roundId: number; closedAt: big
         </Link>
         <p className="mt-1 text-[12px] text-[var(--color-tertiary)]">
           {closedAt > 0n ? formatTimestamp(closedAt) : "—"}
-          {reveal.state === "revealed" && weight !== null ? (
+          {payout.result ? (
             <>
               <span className="mx-2 text-[var(--color-quaternary)]">·</span>
-              {weight > 0n ? "You were in this draw" : "You held no stake in this round"}
+              {payout.result.wins.length > 0
+                ? payout.result.wins.map((win) => win.tier).join(", ")
+                : `no match across ${payout.result.pointsChecked} draw points`}
             </>
           ) : null}
         </p>
@@ -163,19 +158,21 @@ function RoundHistoryRow({ roundId, closedAt }: { roundId: number; closedAt: big
 
       <div className="flex shrink-0 items-center gap-3">
         <ConfidentialValue
-          state={reveal.state}
+          state={payout.isComputing ? "decrypting" : payout.state}
           display={
-            weight !== null ? formatAmount(weight, { decimals: 0, currency: false }) : undefined
+            payout.result
+              ? `${formatAmount(payout.result.total, { decimals: 6, currency: false })} ${assetSymbol()}`
+              : undefined
           }
-          error={reveal.error}
+          error={payout.error}
           size="sm"
           currency={false}
           showStatus={false}
         />
         <RevealButton
-          state={reveal.state}
-          onReveal={reveal.reveal}
-          onHide={reveal.hide}
+          state={payout.state}
+          onReveal={payout.reveal}
+          onHide={payout.hide}
           labelReveal="Reveal"
           labelHide="Hide"
         />
