@@ -313,3 +313,68 @@ task("keeper", "Advances the round state machine (permissionless)")
 
     console.log(`\nStopped after ${maxPasses} transitions. Run again to continue.`);
   });
+
+/**
+ * A round that starts now, for filming or a walkthrough.
+ *
+ * The scheduled calendar is laid out in advance and falls behind whenever the keeper misses
+ * its window, so the next round on it is often one whose window has already elapsed. Those
+ * open and are immediately closable — useful for clearing a backlog, useless for showing
+ * anybody a countdown, and they draw over a window nobody had a chance to deposit in.
+ *
+ * This configures a single round beginning a minute from now, which is long enough to open it
+ * on camera and short enough to draw before an audience loses interest.
+ *
+ * `openRound` imposes no ordering — any scheduled round past its `opensAt` may be opened — so
+ * this coexists with the calendar rather than disturbing it.
+ *
+ * `weightPerTicket` scales with the window. Weight is `balance x minutes`, so a fifteen-minute
+ * round accrues a twenty-fourth of a six-hour one; left at the calendar's value, nobody would
+ * come close to a full ticket share and most of the domain would go unallocated, which is what
+ * makes a jackpot roll over instead of paying out.
+ */
+task("round:demo", "Configures a short round starting now (admin)")
+  .addOptionalParam("minutes", "How long the round should run", 20, types.int)
+  .addOptionalParam("maxParticipants", "Participants scored", 5, types.int)
+  .setAction(async (args, hre) => {
+    const sable = await vault(hre);
+    const minutes = Number(args.minutes);
+    if (minutes < 5) throw new Error("The contract enforces a five-minute minimum.");
+
+    const opensAt = Math.floor(Date.now() / 1000) + 60;
+    const closesAt = opensAt + minutes * 60;
+
+    /*
+     * 1e5 suits an hour, and this scales *with* the window, not against it.
+     *
+     * tickets = balance x minutes / weightPerTicket, so holding the token cap fixed as the
+     * window shrinks means shrinking weightPerTicket in step. Inverting that — which this did
+     * at first — quadrupled the tokens needed for a full share on a half-hour round, leaving
+     * most of the ticket domain unallocated and the jackpot rolling over.
+     */
+    const weightPerTicket = BigInt(Math.max(Math.round((100_000 * minutes) / 60), 1));
+
+    await (
+      await sable.configureRound({
+        opensAt,
+        closesAt,
+        ticketBits: 24,
+        maxParticipants: Number(args.maxParticipants),
+        weightPerTicket,
+        jackpotWinnerCount: 1,
+        midWinnerCount: 3,
+        smallWinnerCount: 10,
+        jackpotShareBps: 5000,
+        midShareBps: 3000,
+        smallShareBps: 2000,
+      })
+    ).wait();
+
+    const id = Number(await sable.roundCount());
+    const capTickets = 2 ** 24 / Number(args.maxParticipants);
+    console.log(`\nRound #${id} — ${minutes} minutes`);
+    console.log(`  opens  ${stamp(opensAt)}`);
+    console.log(`  closes ${stamp(closesAt)}`);
+    console.log(`  a full ticket share needs ~${Math.round((capTickets * Number(weightPerTicket)) / minutes / 1e6)} tokens held throughout`);
+    console.log(`\nOpen it from the overview, or: npx hardhat keeper --network ${hre.network.name}`);
+  });
