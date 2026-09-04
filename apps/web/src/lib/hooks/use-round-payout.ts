@@ -55,8 +55,27 @@ export function useRoundPayout(round: RoundSummary | null) {
 
   const [startHandle, endHandle] = (range as [`0x${string}`, `0x${string}`] | undefined) ?? [];
 
+  /*
+   * The wallet's stake in this round, revealed alongside the range.
+   *
+   * Weight and payout answer different questions — what you held, and what chance did with it
+   * — and the pair is what shows the draw is random rather than a proportional distribution.
+   * Bundled into the one reveal because a saver asking "how did I do in round four" wants both
+   * and should not press twice; the EIP-712 authorisation is cached per session, so the extra
+   * handle costs a decryption rather than another signature.
+   */
+  const { data: weightHandle } = useReadContract({
+    ...sable,
+    functionName: "confidentialWeightOf",
+    args: address && round ? [BigInt(round.id), address] : undefined,
+    query: { enabled: Boolean(sable.address && address && complete) },
+  });
+
   const startReveal = useReveal(startHandle, { contractAddress: addresses.sable ?? undefined });
   const endReveal = useReveal(endHandle, { contractAddress: addresses.sable ?? undefined });
+  const weightReveal = useReveal(weightHandle as `0x${string}` | undefined, {
+    contractAddress: addresses.sable ?? undefined,
+  });
 
   const start = typeof startReveal.value === "bigint" ? startReveal.value : null;
   const end = typeof endReveal.value === "bigint" ? endReveal.value : null;
@@ -124,12 +143,14 @@ export function useRoundPayout(round: RoundSummary | null) {
   return {
     /** Reveals the ticket range, which is the only private input. */
     reveal: async () => {
-      await Promise.all([startReveal.reveal(), endReveal.reveal()]);
+      await Promise.all([startReveal.reveal(), endReveal.reveal(), weightReveal.reveal()]);
     },
     hide: () => {
       startReveal.hide();
       endReveal.hide();
+      weightReveal.hide();
     },
+    weight: typeof weightReveal.value === "bigint" ? weightReveal.value : null,
     state: startReveal.state,
     error: startReveal.error ?? endReveal.error,
     ranged,

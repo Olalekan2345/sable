@@ -91,9 +91,9 @@ function RoundHistory() {
       <div className="px-7 pt-7 sm:px-8">
         <p className="text-eyebrow">Your rounds</p>
         <p className="mt-2 max-w-[62ch] text-[13px] leading-relaxed text-[var(--color-tertiary)]">
-          What each settled draw paid you. Revealing decrypts your ticket range for that round
-          and works out which of its winning numbers fell inside it — nobody else can do this
-          for your wallet, and you cannot do it for theirs.
+          What you held in each settled draw, and what it paid. Revealing decrypts your stake
+          and ticket range for that round, then works out which of its winning numbers fell
+          inside it — nobody else can do this for your wallet, and you cannot do it for theirs.
         </p>
       </div>
 
@@ -145,6 +145,24 @@ function RoundHistoryRow({ round }: { round: RoundSummary }) {
         </Link>
         <p className="mt-1 text-[12px] text-[var(--color-tertiary)]">
           {closedAt > 0n ? formatTimestamp(closedAt) : "—"}
+
+          {/*
+            Weight beside the payout, because the pair is the point.
+            
+            Weight is what this wallet held in the draw; the payout is what chance did with it.
+            Large weight and nothing won is not a contradiction — it is the mechanism working,
+            and showing only the payout would leave that looking like a fault.
+          */}
+          {payout.weight !== null ? (
+            <>
+              <span className="mx-2 text-[var(--color-quaternary)]">·</span>
+              weight{" "}
+              <span className="text-numeric">
+                {formatAmount(payout.weight, { decimals: 0, currency: false })}
+              </span>
+            </>
+          ) : null}
+
           {payout.result ? (
             <>
               <span className="mx-2 text-[var(--color-quaternary)]">·</span>
