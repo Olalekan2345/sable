@@ -6,7 +6,6 @@ import { WagmiProvider } from "wagmi";
 
 import { createWagmiConfig } from "@/lib/wagmi";
 import { appKitEnabled, initAppKit, wagmiAdapter } from "@/lib/appkit";
-import { RestoreSession } from "@/components/shell/restore-session";
 import { ToastProvider } from "@/components/ui/toast";
 
 /**
@@ -44,7 +43,6 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RestoreSession />
         <ToastProvider>{children}</ToastProvider>
       </QueryClientProvider>
     </WagmiProvider>
