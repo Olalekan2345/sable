@@ -567,21 +567,27 @@ is in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 1. Open Sable — no wallet needed for the landing page or `/draws`
 2. Connect a Sepolia wallet
-3. Bring cUSDCMock to the wallet — or bring USDCMock and **shield** as much of it as you
-   want at `/app/deposit/shield`
+3. Press **Get test tokens** in the app bar — 10,000 `USDCMock`, no cooldown — then **shield**
+   as much as you like into `cUSDCMock` at `/app/deposit/shield`
 4. Authorise the vault, then deposit an encrypted amount
 5. **Open the transaction on Etherscan — the calldata contains no plaintext amount**
-6. Reveal your balance via EIP-712
-7. Set your mode to Lucky
-8. **Set a second wallet to Steady, and compare: identical selector, identical calldata
-   length, identical event**
-9. Run a round
-10. Open `/draws/1` in a private window with no wallet — real prize figures resolve
-11. Reveal rewards on each wallet — only the owner can decrypt
-12. Withdraw, then unwrap back to the public token — watch the three stages
-13. Generate a statement — built locally; the network tab shows nothing transmitted
+6. Reveal your balance via EIP-712 — a signature, not a transaction, and no gas
+7. Note that you are already in the draw. New positions open in **Lucky**, so depositing is
+   the only step; the overview says *"You are in this round"* without you choosing anything
+8. Reveal your mode to confirm it — the default is stored encrypted like any other selection,
+   so "never chose" is indistinguishable from "chose Lucky"
+9. **Set a second wallet to Steady, and compare the two transactions: identical selector,
+   identical calldata length, identical event.** Opting *out* is as invisible as opting in
+10. Start a round from the overview — no role required — and watch it close, draw and settle
+11. Open the completed round in a private window with no wallet — prize figures and the
+    winning numbers resolve for anyone
+12. Reveal a row in **Rewards** on each wallet: your stake in that draw and what it paid,
+    recomputed in the browser from public draw points and your own encrypted ticket range
+13. Withdraw, then unwrap back to the public token — watch the three stages
+14. Generate a statement — built locally; the network tab shows nothing transmitted
 
-Steps 5 and 8 are the ones that actually prove the product's claims.
+Steps 5 and 9 are the ones that actually prove the product's claims. Step 7 is the one people
+misread: there is no "join the draw" button, because depositing is joining.
 
 ---
 

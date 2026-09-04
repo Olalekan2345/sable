@@ -198,7 +198,7 @@ Connect a wallet on Sepolia.
 | 3 | Deposit an amount | The UI walks through *encrypting → awaiting wallet → confirming*; encryption takes a visible moment |
 | 4 | Open the transaction on Etherscan | **The calldata contains no plaintext amount.** This is the demonstration |
 | 5 | Reveal your balance | EIP-712 signature, then the real figure resolves |
-| 6 | Set the mode to Lucky | Note the calldata |
+| 6 | Reveal the mode without setting it | Reads Lucky — the default a deposit gives you. Then set it explicitly and note the calldata |
 | 7 | Set a second wallet to Steady | **Compare the two transactions — identical selector, identical calldata length, identical event** |
 | 8 | Wait, then close and run the round | Follow `round:status` |
 | 9 | Open `/draws/1` in a private window, no wallet | Real prize figures resolve via public decryption |
