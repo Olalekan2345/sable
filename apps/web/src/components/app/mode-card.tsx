@@ -4,12 +4,16 @@ import { RoundState, addresses } from "@sable/config";
 import Link from "next/link";
 
 import { DrawCountdown } from "@/components/app/draw-countdown";
-import { ButtonLink } from "@/components/ui/button";
+import { TransactionStatus } from "@/components/app/transaction-status";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { ConfidentialValue, RevealButton } from "@/components/ui/confidential-value";
 import { Badge, Card, PrivacyNote } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
+import { useConfidentialTx } from "@/lib/hooks/use-confidential-tx";
+import { useNextOpenableRound } from "@/lib/hooks/use-next-round";
 import { useReveal } from "@/lib/hooks/use-reveal";
-import { useActiveRound, useRoundCountdown, type RoundSummary } from "@/lib/hooks/use-rounds";
+import { useActiveRound, useNow, useRoundCountdown, type RoundSummary } from "@/lib/hooks/use-rounds";
 import { useProtocolState, usePositionHandles } from "@/lib/hooks/use-sable";
 
 /**
@@ -149,6 +153,78 @@ function settlementProgress(round: RoundSummary): {
   }
 }
 
+/**
+ * Starting a round, from the browser, as anybody.
+ *
+ * `openRound` checks no role, so this is not an admin control that happens to be exposed — it
+ * is the permissionless design made usable. Between rounds the card previously said "no round
+ * is open" and left the visitor waiting on a scheduled job they cannot see, which runs late
+ * enough to be worth not waiting for.
+ *
+ * ## It does not require a deposit, and does not pretend to
+ *
+ * The contract lets anyone open a round whether or not they hold anything, so gating this
+ * behind a balance would be a rule the interface invented — and one a reader could disprove
+ * by calling the contract directly. The notice below says what a deposit *buys* rather than
+ * demanding one: without it the round runs and settles perfectly well, and pays the person
+ * nothing, because they were not in it.
+ */
+function OpenRoundAction() {
+  const { round: next, refetch } = useNextOpenableRound();
+  const { isParticipant } = usePositionHandles();
+  const tx = useConfidentialTx();
+  const { notify } = useToast();
+  const now = useNow();
+
+  if (!next) return null;
+
+  const open = async () => {
+    const hash = await tx.sendPlain("openRound", [BigInt(next.id)]);
+    if (hash) {
+      notify({
+        title: `Round #${next.id} is open`,
+        description: "Deposits from here on earn weight in this round's draw.",
+        tone: "verified",
+        txHash: hash,
+      });
+      await refetch();
+    }
+  };
+
+  // Not yet its turn. Saying when is more use than an inert button.
+  if (!next.openable) {
+    const minutes = Math.max(Math.ceil((next.opensAt - now) / 60), 0);
+    return (
+      <p className="mt-5 text-[13px] text-[var(--color-tertiary)]">
+        Round #{next.id} can be opened in {minutes} minute{minutes === 1 ? "" : "s"}, by anyone.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-6">
+      <Button size="md" fullWidth onClick={open} loading={tx.isBusy}>
+        Start round #{next.id}
+      </Button>
+
+      {!isParticipant ? (
+        <p className="mt-3 text-[12px] leading-relaxed text-[var(--color-tertiary)]">
+          You can start it either way. To be <em>in</em> it, deposit first — around 10,000
+          cUSDCMock, which is one press of Get test tokens, fills a full share of the ticket
+          space. Weight is balance multiplied by time held, so depositing before the round
+          opens earns the most.
+        </p>
+      ) : (
+        <p className="mt-3 text-[12px] leading-relaxed text-[var(--color-tertiary)]">
+          You already have a position, so you are in this round from the moment it opens.
+        </p>
+      )}
+
+      <TransactionStatus stage={tx.stage} error={tx.error} txHash={tx.txHash} className="mt-4" />
+    </div>
+  );
+}
+
 export function NextDrawCard({ className }: { className?: string }) {
   const { round } = useActiveRound();
   const countdown = useRoundCountdown(round);
@@ -184,8 +260,12 @@ export function NextDrawCard({ className }: { className?: string }) {
         <p className="text-eyebrow">Next draw</p>
         <p className="mt-4 text-[15px] text-[var(--color-secondary)]">No round is open.</p>
         <p className="mt-2.5 text-[13px] leading-relaxed text-[var(--color-tertiary)]">
-          Your savings keep earning. A new round appears here as soon as one opens.
+          Your savings keep earning. A round starts when anyone opens it — no permission
+          required, and no need to wait for us.
         </p>
+
+        <OpenRoundAction />
+
         <div className="rule-fade my-6" />
         <Link
           href="/draws"

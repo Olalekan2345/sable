@@ -344,6 +344,18 @@ const clock = {
  * memoised on the round object, which meant the number only changed when the round was
  * refetched — a deposit deadline that sat frozen while the user watched it.
  */
+/**
+ * The shared second-clock, for anything that needs "now" during render.
+ *
+ * Reading `Date.now()` in a render body is impure: a component that re-renders for an
+ * unrelated reason silently produces a different answer. This subscribes to the same interval
+ * the countdowns already use, so a value read during render is stable within that pass and
+ * every consumer agrees on the time.
+ */
+export function useNow(): number {
+  return useSyncExternalStore(clock.subscribe, clock.getSnapshot, clock.getSnapshot);
+}
+
 export function useRoundCountdown(round: RoundSummary | null): number | null {
   const now = useSyncExternalStore(clock.subscribe, clock.getSnapshot, clock.getSnapshot);
 
