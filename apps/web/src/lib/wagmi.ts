@@ -57,15 +57,27 @@ export function createWagmiConfig() {
     // Explicit, though it is the default: this is what surfaces installed wallets by name.
     multiInjectedProviderDiscovery: true,
     /*
-     * Storage is left to wagmi's default, which is `localStorage`.
+     * `ssr: false`, deliberately, on a server-rendered app.
      *
-     * This used to be `cookieStorage`, which is the right choice only when the server renders
-     * the connected state — and that requires passing `cookieToInitialState` into the
-     * provider, which was never wired up. Without it the cookie bought nothing and cost
-     * something: wallet state has to survive inside a ~4KB cookie, and a connector whose
-     * state exceeds that is dropped silently, so the session simply vanishes on the next load.
+     * The flag does not mean "this app uses SSR". It means "the server will hand you the
+     * connection state, so do not read storage yourself" — and wagmi then waits for an
+     * `initialState` prop that only `cookieToInitialState` can produce. Nothing here passes
+     * one, so every load began disconnected and *discarded the persisted session*: the store
+     * came back with `connections: []` while `wagmi.recentConnectorId` still named the wallet.
+     *
+     * The visible result was a saver being asked to reconnect on every page load, which is
+     * the single most alarming thing a wallet app can do.
+     *
+     * With it off, wagmi rehydrates from `localStorage` on mount and reconnects to the wallet
+     * it already had. The connection is client state either way — no server render can know
+     * which wallet is installed — so nothing is lost by admitting that.
+     *
+     * Storage stays wagmi's default `localStorage`. It was briefly `cookieStorage`, which is
+     * the right choice only when the server *does* render connection state; without that it
+     * bought nothing and cost something, since a connector whose state exceeds ~4KB is
+     * dropped from a cookie silently.
      */
-    ssr: true,
+    ssr: false,
     transports: {
       [SABLE_CHAIN.id]: http(process.env.NEXT_PUBLIC_RPC_URL || undefined, {
         /*

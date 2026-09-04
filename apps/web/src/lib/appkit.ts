@@ -54,15 +54,12 @@ export const wagmiAdapter = projectId
       projectId,
       networks: [SABLE_CHAIN],
       /*
-       * Storage is left to wagmi's default, which is `localStorage`.
-       *
-       * This used to be `cookieStorage`, which is the right choice only when the server renders
-       * the connected state — and that requires passing `cookieToInitialState` into the
-       * provider, which was never wired up. Without it the cookie bought nothing and cost
-       * something: wallet state has to survive inside a ~4KB cookie, and a connector whose
-       * state exceeds that is dropped silently, so the session simply vanishes on the next load.
+       * See the note in `lib/wagmi.ts`: `ssr: true` makes wagmi wait for an `initialState`
+       * that nothing supplies, and discard the stored session in the meantime. The adapter
+       * builds its own config, so it needs the same correction — a fix applied to one and not
+       * the other would work only on deployments without a WalletConnect project id.
        */
-      ssr: true,
+      ssr: false,
       transports: {
         [SABLE_CHAIN.id]: http(process.env.NEXT_PUBLIC_RPC_URL || undefined, {
         /*

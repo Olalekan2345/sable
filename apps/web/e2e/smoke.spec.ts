@@ -368,28 +368,15 @@ test.describe("Third-party telemetry", () => {
  * This asserts the property rather than the mechanism: once connected, moving around the app
  * never asks for a wallet again. It fails against the old behaviour and passes against a fix
  * regardless of how the resolving state is represented.
+ *
+ * It ran as `test.fail()` for a while, recording a real defect: `ssr: true` told wagmi to wait
+ * for an `initialState` that nothing supplied, so each load began disconnected and discarded
+ * the stored session. The annotation is gone because the cause is.
  */
 test.describe("Connection stability", () => {
   test.setTimeout(120_000);
 
   test("never asks for a wallet again once connected", async ({ page }) => {
-    /*
-     * Currently failing, deliberately recorded rather than hidden.
-     *
-     * The masking fixes above stop the app *claiming* a disconnection, but the connection is
-     * genuinely lost across a full page load: `wagmi.store` comes back with `connections: []`
-     * and `current: null`, while `wagmi.recentConnectorId` survives and AppKit's own
-     * `@appkit/connection_status` still reads "connected". Two state machines over one
-     * config, disagreeing.
-     *
-     * Retrying `reconnect()` once wallet discovery has populated the connector list does not
-     * recover it, which rules out the obvious race and points at AppKit resetting wagmi's
-     * connection during its own initialisation.
-     *
-     * `test.fail()` keeps this running: it passes while the bug exists and turns red the
-     * moment the behaviour is fixed, which is the signal to delete this annotation.
-     */
-    test.fail();
 
     await installWallet(page);
     await page.goto("/app");
