@@ -70,7 +70,13 @@ export function AssetRow({
       {/* ------------------------------------------------------------ shielded */}
       <div className="sm:w-[190px]">
         <p className="text-eyebrow mb-1.5 sm:text-right">Shielded</p>
-        <div className="flex items-center gap-3 sm:justify-end">
+        {/*
+          `min-w-0` so this can never push into the public column beside it. The revealing
+          state is wider than the masked one, and a fixed-width cell with `justify-end`
+          overflows leftwards rather than clipping — which put the mask on top of the public
+          balance instead of simply running out of room.
+        */}
+        <div className="flex min-w-0 items-center gap-3 sm:justify-end">
           {/*
             No currency prefix: these wrappers are not all dollar-denominated, and a `$`
             against a shielded WETH balance would misstate the unit. The row already names
@@ -82,6 +88,11 @@ export function AssetRow({
             error={reveal.error}
             size="sm"
             currency={false}
+            /*
+             * The button beside this already reads "Working…", so the phrase would be both
+             * redundant and the thing that breaks the layout. Screen readers still get it.
+             */
+            showStatus={false}
           />
           <RevealButton
             state={reveal.state}

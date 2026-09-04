@@ -27,6 +27,17 @@ export interface ConfidentialValueProps {
   className?: string;
   /** Digits in the masked placeholder. Kept constant so the layout never jumps. */
   maskLength?: number;
+  /**
+   * Whether the progress phrase is shown beside the mask.
+   *
+   * On by default, because "Authorizing wallet…" and "Decrypting securely…" distinguish two
+   * stages that feel identical otherwise — one is waiting on the wallet, the other on the
+   * relayer. Turn it off where the value sits in a fixed-width cell: the phrase is far wider
+   * than the mask it replaces, and a row that fits when hidden will overflow when revealing.
+   *
+   * It is never dropped, only moved out of sight — screen readers still receive it.
+   */
+  showStatus?: boolean;
 }
 
 const SIZES = {
@@ -57,6 +68,7 @@ export function ConfidentialValue({
   currency = true,
   className,
   maskLength = 6,
+  showStatus = true,
 }: ConfidentialValueProps) {
   const reduceMotion = useReducedMotion();
 
@@ -102,7 +114,13 @@ export function ConfidentialValue({
             aria-live="polite"
           >
             <span className={cn("masked-value scan", SIZES[size])}>{mask}</span>
-            <span className="text-[12px] text-[var(--color-tertiary)]">{STAGE_COPY[state]}</span>
+            <span
+              className={
+                showStatus ? "text-[12px] text-[var(--color-tertiary)]" : "sr-only"
+              }
+            >
+              {STAGE_COPY[state]}
+            </span>
           </motion.div>
         ) : (
           <motion.div
