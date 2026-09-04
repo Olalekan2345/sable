@@ -85,20 +85,65 @@ export function WalletButton({ className }: { className?: string }) {
 
   return (
     <div ref={containerRef} className={cn("relative", className)}>
+      {/*
+        Deliberately not as loud as the primary beside it.
+        
+        This sits next to the faucet call to action, which is the thing a newcomer must find.
+        Matching its weight would leave two controls competing and neither leading. So the
+        treatment here is *status* rather than emphasis: the glow is the connection's own
+        colour, and it says "live" instead of "press me".
+      */}
       <button
         type="button"
         onClick={() => setMenuOpen((open) => !open)}
         aria-expanded={menuOpen}
         aria-haspopup="menu"
         className={cn(
-          "inline-flex h-9 items-center gap-2.5 rounded-full border px-3.5",
-          "border-[var(--color-hairline-strong)] bg-[var(--color-raised)]",
+          "group inline-flex h-9 items-center gap-2.5 rounded-full border px-3.5",
+          "border-[rgba(94,224,138,0.22)]",
+          "bg-[linear-gradient(180deg,var(--color-elevated),var(--color-raised))]",
           "font-mono text-[11px] text-[var(--color-secondary)]",
-          "transition-colors hover:border-[var(--color-hairline-accent)] hover:text-[var(--color-primary)]",
+          "shadow-[0_0_0_1px_rgba(94,224,138,0.06),0_2px_12px_-6px_rgba(94,224,138,0.45)]",
+          "transition-[color,border-color,box-shadow,transform] duration-200",
+          "hover:border-[rgba(94,224,138,0.45)] hover:text-[var(--color-primary)]",
+          "hover:shadow-[0_0_0_1px_rgba(94,224,138,0.16),0_6px_20px_-6px_rgba(94,224,138,0.75)]",
         )}
       >
-        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[var(--color-verified)]" />
+        {/*
+          A live indicator, not a decoration: the halo pulses only while a wallet is actually
+          connected, which is the one thing this control exists to report. `motion-safe`
+          rather than a JS check, so the preference is honoured by the browser and the dot
+          still shows without it.
+        */}
+        <span aria-hidden="true" className="relative flex h-1.5 w-1.5 shrink-0">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-[var(--color-verified)] opacity-70 motion-safe:animate-ping" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--color-verified)]" />
+        </span>
+
         {truncateAddress(address ?? "")}
+
+        {/*
+          The pill opens a menu and gave no sign of it. A chevron that turns is the smallest
+          honest affordance for that.
+        */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 12 12"
+          className={cn(
+            "h-3 w-3 shrink-0 text-[var(--color-quaternary)] transition-transform duration-200",
+            "group-hover:text-[var(--color-tertiary)]",
+            menuOpen && "rotate-180",
+          )}
+        >
+          <path
+            d="M3 4.5 L6 7.5 L9 4.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
 
       <AnimatePresence>
