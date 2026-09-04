@@ -211,6 +211,9 @@ function SteadyVisual({ active, reduceMotion }: { active: boolean; reduceMotion:
   );
 }
 
+/** Size of a travelling particle, in the 100-unit viewBox. */
+const PARTICLE = 5.5;
+
 /** Particles from several private balances converging on a shared prize. */
 function LuckyVisual({ active, reduceMotion }: { active: boolean; reduceMotion: boolean }) {
   const sources = [
@@ -235,22 +238,46 @@ function LuckyVisual({ active, reduceMotion }: { active: boolean; reduceMotion: 
               stroke="var(--color-hairline)"
               strokeWidth="0.3"
             />
-            <circle r="1.1" fill="var(--color-accent)">
-              {/*
-                Not gated on hover, for the same reason as the stack opposite: a comparison
-                needs both halves alive. Reduced motion still parks the particle at its source
-                rather than looping it.
-              */}
-              {!reduceMotion ? (
+            {/*
+              The yield itself, in the asset it accrues in.
+              
+              These were accent dots, which read as "something is moving" and nothing more.
+              Using the token's own mark says what is travelling: interest leaving several
+              private balances and arriving in one shared pool, which is the entire claim this
+              panel makes.
+              
+              A 64px copy cropped to the mark's own disc, not the 1254px source — a page does
+              not need 130KB to draw six particles, and the square would have flown as a white
+              tile rather than a coin.
+              
+              Not gated on hover, for the same reason as the stack opposite: a comparison needs
+              both halves alive.
+            */}
+            {!reduceMotion ? (
+              <image
+                href="/tokens/usdc-particle.png"
+                width={PARTICLE}
+                height={PARTICLE}
+                x={-PARTICLE / 2}
+                y={-PARTICLE / 2}
+              >
                 <animateMotion
                   dur={`${2.4 + index * 0.24}s`}
                   repeatCount="indefinite"
                   path={`M${source.x},${source.y} L50,50`}
                 />
-              ) : (
-                <animate attributeName="cx" values={`${source.x}`} dur="1s" fill="freeze" />
-              )}
-            </circle>
+              </image>
+            ) : (
+              // Reduced motion parks each one at its source: the picture still shows several
+              // balances feeding one pool, without anything travelling.
+              <image
+                href="/tokens/usdc-particle.png"
+                width={PARTICLE}
+                height={PARTICLE}
+                x={source.x - PARTICLE / 2}
+                y={source.y - PARTICLE / 2}
+              />
+            )}
           </g>
         ))}
 
