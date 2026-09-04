@@ -1,6 +1,7 @@
 "use client";
 
-import { RoundState, addresses, formatAmount } from "@sable/config";
+import { RoundState, addresses, formatAmount, formatTimestamp } from "@sable/config";
+import Link from "next/link";
 import { useAccount } from "wagmi";
 
 import { ConnectPrompt } from "@/components/app/connect-prompt";
@@ -50,7 +51,7 @@ export default function RewardsPage() {
         <RewardsSummary />
 
         {latest ? (
-          <DrawWeightCard roundId={latest.id} />
+          <RoundHistory />
         ) : (
           <Card>
             <EmptyState
@@ -64,8 +65,66 @@ export default function RewardsPage() {
   );
 }
 
-/** Reveals the caller's own time-weighted eligibility for a specific round. */
-function DrawWeightCard({ roundId }: { roundId: number }) {
+/**
+ * Every settled round, with the share this wallet held in each.
+ *
+ * ## What this can and cannot say
+ *
+ * `confidentialWeightOf(roundId, account)` is stored per round and per account, and only its
+ * owner can decrypt it — so each row can honestly report *your* stake in that specific draw.
+ *
+ * Winnings cannot be broken down the same way. Settlement folds every round's prize into one
+ * cumulative `reward` handle, so the chain simply does not hold "you won 0.7 in round four".
+ * Showing a per-round payout would mean inventing an attribution, which on a protocol whose
+ * claim is that anyone can check the arithmetic is the worst kind of convenience. The total is
+ * above; the per-round prize figures are public and one click away on each round.
+ *
+ * Rounds you were not in reveal a weight of zero, which is the truthful answer and needs no
+ * lookup of when the wallet registered.
+ */
+function RoundHistory() {
+  const { rounds } = useAllRounds();
+  const settled = rounds.filter((round) => round.lifecycle.state === RoundState.Complete);
+
+  if (settled.length === 0) return null;
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="px-7 pt-7 sm:px-8">
+        <p className="text-eyebrow">Your rounds</p>
+        <p className="mt-2 max-w-[62ch] text-[13px] leading-relaxed text-[var(--color-tertiary)]">
+          Your stake in each settled draw, decryptable only by you. Prize figures for a round are
+          public — open it to see what it paid and whether the jackpot was won.
+        </p>
+      </div>
+
+      <ul className="mt-5">
+        {settled.map((round) => (
+          <RoundHistoryRow key={round.id} roundId={round.id} closedAt={round.lifecycle.closedAt} />
+        ))}
+      </ul>
+
+      {/*
+        The limitation stated on screen, not just in the source.
+        
+        A reader could reasonably expect this list to break their winnings down by round, and
+        it cannot. Saying why — one cumulative handle, not one per round — is more useful than
+        letting them wonder whether the app is hiding it or the protocol failed to record it.
+      */}
+      <div className="border-t border-[var(--color-hairline)] px-7 py-5 sm:px-8">
+        <PrivacyNote className="items-start">
+          <span>
+            Prizes settle into a single running total, so winnings cannot be split by round —
+            not by you, and not by anyone else. Your stake in each draw is per-round and
+            private; the amount you have won is the total above.
+          </span>
+        </PrivacyNote>
+      </div>
+    </Card>
+  );
+}
+
+function RoundHistoryRow({ roundId, closedAt }: { roundId: number; closedAt: bigint }) {
   const { address } = useAccount();
   const sable = useSableContract();
 
@@ -83,46 +142,44 @@ function DrawWeightCard({ roundId }: { roundId: number }) {
   const weight = typeof reveal.value === "bigint" ? reveal.value : null;
 
   return (
-    <Card className="p-7 sm:p-8">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-eyebrow">Your draw weight — round #{roundId}</p>
-          <div className="mt-2.5">
-            <ConfidentialValue
-              state={reveal.state}
-              display={weight !== null ? formatAmount(weight, { decimals: 0, currency: false }) : undefined}
-              error={reveal.error}
-              size="md"
-              currency={false}
-            />
-          </div>
-        </div>
+    <li className="flex flex-col gap-3 border-t border-[var(--color-hairline)] px-7 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+      <div className="min-w-0">
+        <Link
+          href={`/draws/${roundId}`}
+          className="text-[14px] font-medium text-[var(--color-primary)] underline decoration-[var(--color-quaternary)] underline-offset-[3px] transition-colors hover:text-[var(--color-accent)]"
+        >
+          Round #{roundId}
+        </Link>
+        <p className="mt-1 text-[12px] text-[var(--color-tertiary)]">
+          {closedAt > 0n ? formatTimestamp(closedAt) : "—"}
+          {reveal.state === "revealed" && weight !== null ? (
+            <>
+              <span className="mx-2 text-[var(--color-quaternary)]">·</span>
+              {weight > 0n ? "You were in this draw" : "You held no stake in this round"}
+            </>
+          ) : null}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-3">
+        <ConfidentialValue
+          state={reveal.state}
+          display={
+            weight !== null ? formatAmount(weight, { decimals: 0, currency: false }) : undefined
+          }
+          error={reveal.error}
+          size="sm"
+          currency={false}
+          showStatus={false}
+        />
         <RevealButton
           state={reveal.state}
           onReveal={reveal.reveal}
           onHide={reveal.hide}
-          labelReveal="Reveal weight"
-          labelHide="Hide weight"
+          labelReveal="Reveal"
+          labelHide="Hide"
         />
       </div>
-
-      {reveal.state === "revealed" ? (
-        weight !== null && weight > 0n ? (
-          <p className="mt-5 text-[13px] leading-relaxed text-[var(--color-secondary)]">
-            This is your balance multiplied by the minutes you held it while in Lucky mode. It
-            determined the size of your private ticket range for this round.
-          </p>
-        ) : (
-          <p className="mt-5 text-[13px] leading-relaxed text-[var(--color-tertiary)]">
-            No eligibility for this round — either you were saving in Steady mode, or the balance
-            was not held long enough to accrue whole minutes of weight.
-          </p>
-        )
-      ) : (
-        <PrivacyNote className="mt-5">
-          Weights are never ranked or published. Yours is visible only to you.
-        </PrivacyNote>
-      )}
-    </Card>
+    </li>
   );
 }
