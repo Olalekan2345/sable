@@ -391,7 +391,17 @@ test.describe("Connection stability", () => {
      * separately below, because conflating the two hid which one was actually broken.
      */
     for (const tab of ["Deposit", "Rewards", "Activity", "Yield mode", "Overview"]) {
-      await page.getByRole("link", { name: tab, exact: true }).first().click();
+      /*
+       * The visible one. Both navs are in the DOM at every width — a sidebar and a phone bar
+       * — so `.first()` picks whichever comes first in source order, which on a narrow
+       * viewport is the hidden sidebar link, and the click waits for a visibility that never
+       * arrives.
+       */
+      await page
+        .getByRole("link", { name: tab, exact: true })
+        .locator("visible=true")
+        .first()
+        .click();
       await page.waitForURL(/\/app/);
 
       // The header button is on every screen and is the thing a judge watches flicker. It may
