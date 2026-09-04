@@ -45,11 +45,17 @@ describe a different mechanism.
 Encrypting balances is well-trodden. Encrypting the *choice* is harder, and it is where most
 confidential prize-savings designs leak.
 
-If opting into a draw meant calling a different function, the function selector would publish
-the decision to anyone reading the mempool. The balance would be encrypted and the choice
-would be sitting next to it in plaintext.
+If changing mode meant calling a different function, the function selector would publish the
+decision to anyone reading the mempool. The balance would be encrypted and the choice would be
+sitting next to it in plaintext.
 
-Sable prevents this structurally:
+The direction matters less than it might seem, and is worth stating because Sable's default
+inverts the usual assumption. A new position opens in **Lucky**, so the disclosure a naive
+design would leak here is the decision to *leave* the draw rather than to join it. Either way
+the fix is the same, and it has to close both: an opt-out that anyone can see is exactly as
+revealing as an opt-in.
+
+Sable prevents this structurally, in both directions:
 
 | Vector | How it is closed |
 | --- | --- |

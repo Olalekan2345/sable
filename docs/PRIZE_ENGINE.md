@@ -42,7 +42,7 @@ both directions:
 | --- | --- |
 | Steady for half a round, then Lucky | Weight for the second half only |
 | Lucky for half a round, then Steady | Weight for the first half only, retained |
-| Never touched a round | Full round of weight, no action required |
+| Never touched a round | Full round of weight, no action required — a position opens in Lucky |
 | Deposited 10 seconds before close | Zero — under a minute floors to zero units |
 
 All four are covered by tests asserting exact values, not inequalities.

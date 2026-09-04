@@ -99,7 +99,7 @@ boundaries: the asset (a token anyone can hold independently of Sable) and the y
 | --- | --- | --- |
 | `balance` | `euint64` | Owner only |
 | `reward` | `euint64` | Owner only |
-| `isLucky` | `ebool` | Owner only |
+| `isLucky` | `ebool` | Owner only — set to `true` at registration, so a deposit enters the draw |
 | `roundWeight[round][account]` | `euint64` | Owner only |
 | `ticketStart` / `ticketEnd` | `euint64` | Owner only |
 | `prizePool[round]` | `euint64` | **Public** after finalization |
