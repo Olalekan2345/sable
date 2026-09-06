@@ -296,7 +296,32 @@ task("keeper", "Advances the round state machine (permissionless)")
     console.log(`\nKeeper ${signer.address}`);
     console.log(`  key      ${usingKeeperKey ? "KEEPER_PRIVATE_KEY" : "DEPLOYER_PRIVATE_KEY (fallback)"}`);
     console.log(`  balance  ${ethers.formatEther(balance)} ETH`);
-    if (balance === 0n) throw new Error("Keeper has no ETH. Fund it before running.");
+    /*
+     * Stop before starting, rather than failing partway through.
+     *
+     * A zero check was not enough. Settlement is the expensive step by a wide margin — one
+     * `settleBatch` measured 4.2M gas, around 0.0043 ETH at 1 gwei — so a balance that looks
+     * healthy next to an `openRound` still dies mid-round, leaving a part-settled round and a
+     * stack trace in CI. Which is exactly what happened: 0.0004 ETH left, 0.0043 needed.
+     *
+     * Being out of gas is not a malfunction, and reporting it as one trains people to ignore
+     * the alert. So this exits cleanly with a GitHub warning annotation: the run stays green,
+     * the notice is visible on the workflow, and no failure email goes out for a wallet that
+     * simply needs topping up.
+     *
+     * Nothing is lost by stopping here. Every step is idempotent against on-chain cursors, so
+     * a round left part-advanced resumes from where it stopped once the keeper has gas.
+     */
+    const RESERVE = ethers.parseEther("0.012"); // ~one full round, measured rather than guessed
+
+    if (balance < RESERVE) {
+      console.log(`::warning::Keeper ${signer.address} is low on gas.`);
+      console.log(`\n  Has  ${ethers.formatEther(balance)} ETH`);
+      console.log(`  Needs ${ethers.formatEther(RESERVE)} ETH for a full round`);
+      console.log("\n  Rounds do not advance until it is funded. Nothing is broken: every step");
+      console.log("  resumes from its on-chain cursor, so topping up is the only action needed.");
+      return;
+    }
 
     if (Number(await sable.roundCount()) === 0) {
       console.log("\nNo rounds on the calendar. Run `rounds:schedule` first.");

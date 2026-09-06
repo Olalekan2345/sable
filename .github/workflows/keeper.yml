@@ -18,18 +18,26 @@ name: Keeper
 # ## Setup
 #
 #   1. Generate a fresh key:  `node -e "console.log(require('ethers').Wallet.createRandom().privateKey)"`
-#   2. Send it ~0.05 Sepolia ETH. A full round costs roughly 0.002 ETH at present gas.
+#   2. Send it Sepolia ETH. A full round costs roughly **0.01 ETH** — settlement dominates,
+#      with a single `settleBatch` measured at 4.2M gas (~0.0043 ETH at 1 gwei). 0.05 covers
+#      about five rounds, not the twenty-five an earlier estimate here implied. The keeper
+#      stops cleanly and warns when it drops below one round's worth.
 #   3. Settings → Secrets and variables → Actions → New repository secret:
 #        KEEPER_PRIVATE_KEY   the key from step 1
 #        SEPOLIA_RPC_URL      optional; a dedicated endpoint (see below)
 #
 # ## Cadence
 #
-# Every fifteen minutes, against six-hour rounds. That looks disproportionate until you notice
-# what the job does when there is nothing to do: two `eth_call`s and an exit. The frequency
-# buys punctuality, not throughput — GitHub's scheduler runs late under load, sometimes by
-# half an hour, and a round that closes promptly is the difference between a prize page that
-# looks alive and one that looks abandoned.
+# Hourly, against six-hour rounds.
+#
+# This was every fifteen minutes, on the reasoning that an idle run is two `eth_call`s and the
+# frequency buys punctuality. Both halves were wrong in practice. GitHub honoured the
+# fifteen-minute cron roughly every three hours anyway, so the punctuality was never bought —
+# and when the keeper's wallet ran dry, the cadence turned one problem into a stream of
+# identical failure emails.
+#
+# Hourly is well inside a six-hour round, and the overview now carries a Start round button
+# that anybody can press, so punctuality no longer depends on this schedule at all.
 #
 # Missing runs is safe regardless. The keeper is a convenience, not a dependency: an
 # unadvanced round stays open, deposits keep working, and the next invocation — cron, manual
@@ -40,7 +48,7 @@ name: Keeper
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
 
 # Two keepers racing would waste gas rather than break anything — the loser's transactions
@@ -58,8 +66,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    # A fork inherits the schedule but not the secret, so it would fail every fifteen minutes
-    # forever. Skip there; a maintainer can still dispatch it by hand.
+    # A fork inherits the schedule but not the secret, so it would fail every hour forever.
+    # Skip there; a maintainer can still dispatch it by hand.
     if: github.event_name == 'workflow_dispatch' || github.event.repository.fork == false
 
     steps:
