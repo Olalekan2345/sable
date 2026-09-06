@@ -18,7 +18,7 @@ import {
   Skeleton,
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
-import { useAllRounds, useRoundAggregates, type RoundSummary } from "@/lib/hooks/use-rounds";
+import { useAllRounds, useNow, useRoundAggregates, type RoundSummary } from "@/lib/hooks/use-rounds";
 import { useIsDeployed } from "@/lib/hooks/use-sable";
 
 /**
@@ -118,6 +118,24 @@ export default function DrawsPage() {
 
 function LedgerRow({ round }: { round: RoundSummary }) {
   const { aggregates, notPublished } = useRoundAggregates(round);
+  const now = useNow();
+
+  /*
+   * A scheduled round whose window has gone by will never run.
+   *
+   * Rounds are time-bounded: `openRound` refuses before `opensAt`, and once `closesAt` has
+   * passed a round opens already closable — no countdown, nothing anyone can deposit into.
+   * The keeper skips those in favour of a live window, so nothing ever picks them up.
+   *
+   * Labelling them "Scheduled" implies something still to come. Saying the window elapsed is
+   * what actually happened, and it is not a defect to hide: an unattended keeper lets a round
+   * expire rather than corrupting anything, which is the design working. Drawing them later
+   * would be worse than leaving them — the prize pool is snapshotted at open, so a round run
+   * now would pay yield from this week over a window from last, and the row would describe
+   * something nobody could have taken part in.
+   */
+  const elapsed =
+    round.lifecycle.state === RoundState.Scheduled && now >= Number(round.config.closesAt);
 
   const tone =
     round.lifecycle.state === RoundState.Complete
@@ -139,7 +157,11 @@ function LedgerRow({ round }: { round: RoundSummary }) {
         <span className="font-mono text-[14px] text-[var(--color-primary)]">#{round.id}</span>
 
         <span className="font-mono text-[12px] text-[var(--color-tertiary)]">
-          {round.lifecycle.openedAt > 0n ? formatDate(round.lifecycle.openedAt) : "Not opened"}
+          {round.lifecycle.openedAt > 0n
+            ? formatDate(round.lifecycle.openedAt)
+            : elapsed
+              ? `Closed ${formatDate(round.config.closesAt)}, never opened`
+              : "Not opened"}
         </span>
 
         <span className="text-numeric text-[14px] text-[var(--color-primary)]">
@@ -153,17 +175,19 @@ function LedgerRow({ round }: { round: RoundSummary }) {
         </span>
 
         <span>
-          <Badge tone={tone} dot>
-            {ROUND_STATE_LABELS[round.lifecycle.state]}
+          <Badge tone={elapsed ? "neutral" : tone} dot={!elapsed}>
+            {elapsed ? "Window elapsed" : ROUND_STATE_LABELS[round.lifecycle.state]}
           </Badge>
         </span>
 
         <span className="font-mono text-[12px] text-[var(--color-tertiary)]">
-          {aggregates?.jackpotHit === false
-            ? "Rolled forward"
-            : aggregates?.jackpotHit === true
-              ? "Awarded"
-              : "—"}
+          {elapsed
+            ? "No draw"
+            : aggregates?.jackpotHit === false
+              ? "Rolled forward"
+              : aggregates?.jackpotHit === true
+                ? "Awarded"
+                : "—"}
         </span>
       </Link>
     </li>
