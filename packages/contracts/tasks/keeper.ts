@@ -32,25 +32,32 @@ const stamp = (seconds: number | bigint) => new Date(Number(seconds) * 1000).toI
  */
 task("rounds:schedule", "Configures a run of future rounds (admin)")
   .addOptionalParam("count", "How many rounds to schedule", 28, types.int)
-  .addOptionalParam("duration", "Length of each round, in seconds", 6 * 3600, types.int)
+  .addOptionalParam("duration", "Length of each round, in seconds", 12 * 3600, types.int)
   .addOptionalParam("ticketBits", "Ticket domain exponent k in 2^k", 24, types.int)
-  .addOptionalParam("maxParticipants", "Participants scored per round", 10, types.int)
+  .addOptionalParam("maxParticipants", "Participants scored per round", 5, types.int)
   .addOptionalParam("startIn", "Seconds until the first round opens", 0, types.int)
   /*
-   * Weight per ticket, which has to move with the round length.
+   * Weight per ticket, derived from the round length unless given.
    *
-   * Weight is `balance x minutes held`, so a one-hour round accrues a sixth of what a
-   * six-hour one does. Left at 1e6, an hour-long round needs roughly 28,000 tokens per saver
-   * to reach the per-saver ticket cap — and savers below the cap leave the ticket domain
-   * partly unallocated, which is what makes a jackpot roll forward instead of paying out.
+   * Weight is `balance x minutes held`, so the tokens needed to reach a full ticket share
+   * scale with the window. Pinning this to a constant while the duration moved is a mistake
+   * already made twice here — once inverted, once left behind — and both times the symptom
+   * was the same: savers far below the cap, most of the ticket domain unallocated, and the
+   * jackpot rolling forward instead of paying out.
    *
-   * Lower it for shorter rounds. At 1e5 an hour-long round caps a saver at about 5,600
-   * tokens, which one faucet press covers.
+   * The default keeps a full share at roughly 5,600 tokens, which one faucet press covers, at
+   * any duration. Pass a value to override.
    */
-  .addOptionalParam("weightPerTicket", "Weight units per ticket", 1_000_000, types.int)
+  .addOptionalParam("weightPerTicket", "Weight units per ticket (0 derives it)", 0, types.int)
   .setAction(async (args, hre) => {
     const sable = await vault(hre);
     const duration = Number(args.duration);
+
+    // 1e5 suits an hour; scale linearly so the token cap holds at any window.
+    const weightPerTicket =
+      Number(args.weightPerTicket) > 0
+        ? Number(args.weightPerTicket)
+        : Math.max(Math.round((100_000 * (duration / 60)) / 60), 1);
 
     // Continue from wherever the calendar currently ends, so this can be run again to extend
     // it without leaving a gap or overlapping an existing window.
@@ -69,7 +76,7 @@ task("rounds:schedule", "Configures a run of future rounds (admin)")
     // The numbers that decide whether prizes actually land, stated up front rather than left
     // to be inferred from an empty round.
     const capTickets = 2 ** Number(args.ticketBits) / Number(args.maxParticipants);
-    const capTokens = (capTickets * Number(args.weightPerTicket)) / (duration / 60) / 1e6;
+    const capTokens = (capTickets * weightPerTicket) / (duration / 60) / 1e6;
     console.log(`  per-saver cap    ${capTickets.toLocaleString()} tickets`);
     console.log(`  reached at       ~${capTokens.toFixed(0)} tokens held all round`);
     console.log(`  full allocation  needs ${args.maxParticipants} savers at that cap`);
@@ -80,7 +87,7 @@ task("rounds:schedule", "Configures a run of future rounds (admin)")
         closesAt: opensAt + duration,
         ticketBits: Number(args.ticketBits),
         maxParticipants: Number(args.maxParticipants),
-        weightPerTicket: BigInt(args.weightPerTicket),
+        weightPerTicket: BigInt(weightPerTicket),
         jackpotWinnerCount: 1,
         midWinnerCount: 3,
         smallWinnerCount: 10,
@@ -138,27 +145,56 @@ async function advance(sable: Vault, settleBatch: number): Promise<boolean> {
   const active = Number(await sable.activeRoundId());
   const now = () => Math.floor(Date.now() / 1000);
 
-  // Nothing is open: bring forward the earliest scheduled round whose window has arrived.
+  /*
+   * Nothing is open: bring forward a round, preferring one whose window is actually running.
+   *
+   * This used to take the lowest scheduled id, which is right only while the calendar keeps
+   * pace with the clock. Once the keeper falls behind — and it does, since GitHub honours an
+   * hourly cron loosely — the front of the queue fills with rounds whose windows have already
+   * elapsed. Opening one of those is close to pointless: it is instantly closable, so there is
+   * no countdown, nobody can deposit into it, and it draws over a window nobody was told
+   * about. Worse, each costs a full round of settlement gas to clear.
+   *
+   * `openRound` imposes no ordering, so preferring a live window is free. Elapsed rounds stay
+   * as the fallback, because working through a backlog is better than stalling on it.
+   */
   if (active === 0) {
+    let live: number | null = null;
+    let stale: number | null = null;
+    let upcoming: { id: number; opensAt: number } | null = null;
+
     for (let id = 1; id <= total; id += 1) {
       const state = await sable.roundState(id);
       if (Number(state.state) !== 1) continue;
 
       const config = await sable.roundConfig(id);
-      if (now() < Number(config.opensAt)) {
-        console.log(`\nRound #${id} opens ${stamp(config.opensAt)} — nothing to do yet`);
-        return false;
-      }
+      const opensAt = Number(config.opensAt);
+      const closesAt = Number(config.closesAt);
 
-      console.log(`\nOpening round #${id} ...`);
-      await (await sable.openRound(id)).wait();
-      await settle(sable, id, 2);
-      console.log(`  open until ${stamp(config.closesAt)}`);
-      return true;
+      if (now() >= opensAt && now() < closesAt) {
+        live = id;
+        break;
+      }
+      if (now() >= closesAt) stale ??= id;
+      else upcoming ??= { id, opensAt };
     }
 
-    console.log("\nEvery scheduled round has run. Extend the calendar with `rounds:schedule`.");
-    return false;
+    const chosen = live ?? stale;
+    if (chosen === null) {
+      if (upcoming) {
+        console.log(`\nRound #${upcoming.id} opens ${stamp(upcoming.opensAt)} — nothing to do yet`);
+      } else {
+        console.log("\nEvery scheduled round has run. Extend the calendar with `rounds:schedule`.");
+      }
+      return false;
+    }
+
+    const config = await sable.roundConfig(chosen);
+    console.log(`\nOpening round #${chosen}${live === null ? " (window already elapsed)" : ""} ...`);
+    await (await sable.openRound(chosen)).wait();
+    await settle(sable, chosen, 2);
+    console.log(`  open until ${stamp(config.closesAt)}`);
+    return true;
   }
 
   const roundId = active;

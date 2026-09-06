@@ -28,7 +28,7 @@ name: Keeper
 #
 # ## Cadence
 #
-# Hourly, against six-hour rounds.
+# Hourly, against twelve-hour rounds.
 #
 # This was every fifteen minutes, on the reasoning that an idle run is two `eth_call`s and the
 # frequency buys punctuality. Both halves were wrong in practice. GitHub honoured the
@@ -36,8 +36,19 @@ name: Keeper
 # and when the keeper's wallet ran dry, the cadence turned one problem into a stream of
 # identical failure emails.
 #
-# Hourly is well inside a six-hour round, and the overview now carries a Start round button
+# Hourly is well inside a twelve-hour round, and the overview now carries a Start round button
 # that anybody can press, so punctuality no longer depends on this schedule at all.
+#
+# Twelve hours is a cost decision, measured rather than assumed. A round costs ~0.0095 ETH at
+# 1 gwei, dominated by settlement — 4.2M gas per `settleBatch`, because every account is
+# compared against every draw point and both branches always execute, which is exactly the
+# property that makes winning invisible. The privacy guarantee is the cost, so it cannot be
+# optimised away without leaking who won. Hourly rounds would be ~6.8 ETH a month of faucet
+# ETH; twelve-hour rounds are ~0.57, which one claim a week covers.
+#
+# Round length is a per-round parameter (5 minutes to 30 days), not a protocol constant, so
+# this is a schedule choice rather than a design one. `round:demo --minutes 5` still produces a
+# short round on demand when someone wants to watch a draw land.
 #
 # Missing runs is safe regardless. The keeper is a convenience, not a dependency: an
 # unadvanced round stays open, deposits keep working, and the next invocation — cron, manual
