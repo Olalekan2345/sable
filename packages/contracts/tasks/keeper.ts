@@ -314,12 +314,16 @@ task("keeper", "Advances the round state machine (permissionless)")
      */
     const RESERVE = ethers.parseEther("0.012"); // ~one full round, measured rather than guessed
 
-    if (balance < RESERVE) {
+    const lowOnGas = (remaining: bigint) => {
       console.log(`::warning::Keeper ${signer.address} is low on gas.`);
-      console.log(`\n  Has  ${ethers.formatEther(balance)} ETH`);
+      console.log(`\n  Has   ${ethers.formatEther(remaining)} ETH`);
       console.log(`  Needs ${ethers.formatEther(RESERVE)} ETH for a full round`);
-      console.log("\n  Rounds do not advance until it is funded. Nothing is broken: every step");
-      console.log("  resumes from its on-chain cursor, so topping up is the only action needed.");
+      console.log("\n  Rounds do not advance until it is funded. Nothing is broken: every");
+      console.log("  step resumes from its on-chain cursor, so topping up is all that is needed.");
+    };
+
+    if (balance < RESERVE) {
+      lowOnGas(balance);
       return;
     }
 
@@ -330,7 +334,34 @@ task("keeper", "Advances the round state machine (permissionless)")
 
     const maxPasses = Number(args.maxPasses);
     for (let pass = 0; pass < maxPasses; pass += 1) {
-      if (!(await advance(sable, Number(args.settleBatch)))) {
+      /*
+       * Re-checked every pass, not just at startup.
+       *
+       * One invocation completes several rounds, and a balance that comfortably covered the
+       * first will not cover the third. Checking once at the top caught an empty wallet and
+       * missed the commoner case — running dry partway through — which surfaces as a
+       * settleBatch reverting for funds: a stack trace, a red run, and an email about a
+       * wallet that only needs topping up.
+       */
+      const remaining = await ethers.provider.getBalance(signer.address);
+      if (remaining < RESERVE) {
+        lowOnGas(remaining);
+        return;
+      }
+
+      let acted: boolean;
+      try {
+        acted = await advance(sable, Number(args.settleBatch));
+      } catch (error) {
+        // A price rise between that check and the transaction lands here, and it is the same
+        // non-event. Anything else rethrows — a genuine failure should still be loud.
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/insufficient funds/i.test(message)) throw error;
+        lowOnGas(await ethers.provider.getBalance(signer.address));
+        return;
+      }
+
+      if (!acted) {
         console.log("\nNothing further to do.");
         return;
       }
