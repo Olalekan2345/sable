@@ -140,7 +140,7 @@ async function settle(sable: Vault, roundId: number, expectedState: number): Pro
  * go in one invocation. Every branch either performs work and returns `true`, or finds the
  * chain already where it should be and returns `false`.
  */
-async function advance(sable: Vault, settleBatch: number): Promise<boolean> {
+async function advance(sable: Vault, settleBatch: number, forceRound = 0): Promise<boolean> {
   const total = Number(await sable.roundCount());
   const active = Number(await sable.activeRoundId());
   const now = () => Math.floor(Date.now() / 1000);
@@ -179,7 +179,18 @@ async function advance(sable: Vault, settleBatch: number): Promise<boolean> {
       else upcoming ??= { id, opensAt };
     }
 
-    const chosen = live ?? stale;
+    // An explicit id wins over both, provided it is genuinely scheduled and its window has
+    // started — the contract enforces the second, but failing here is a clearer message.
+    let chosen = live ?? stale;
+    if (forceRound > 0) {
+      const state = Number((await sable.roundState(forceRound)).state);
+      if (state !== 1) throw new Error(`Round #${forceRound} is not scheduled (state ${state}).`);
+      const config = await sable.roundConfig(forceRound);
+      if (now() < Number(config.opensAt)) {
+        throw new Error(`Round #${forceRound} opens ${stamp(config.opensAt)}, which has not arrived.`);
+      }
+      chosen = forceRound;
+    }
     if (chosen === null) {
       if (upcoming) {
         console.log(`\nRound #${upcoming.id} opens ${stamp(upcoming.opensAt)} — nothing to do yet`);
@@ -297,6 +308,20 @@ async function advance(sable: Vault, settleBatch: number): Promise<boolean> {
 task("keeper", "Advances the round state machine (permissionless)")
   .addOptionalParam("settleBatch", "Accounts per settlement transaction", BATCH_DEFAULTS.settle, types.int)
   .addOptionalParam("maxPasses", "Transitions to perform before exiting", 8, types.int)
+  /*
+   * Forces a specific round to be opened, overriding the live-window preference.
+   *
+   * Needed because that preference orphans elapsed rounds once the calendar runs back to back:
+   * `activeRoundId` is zero only between one round completing and the next opening, and the
+   * keeper closes that gap itself, so a skipped round is never reachable again.
+   *
+   * Clearing a backlog deliberately is the one legitimate reason to override it. Note what
+   * such a round actually is: it opens already closable, takes the prize pool accrued since
+   * the last completed round, and scores it over a window that has passed — so it pays real
+   * yield to whoever held a balance back then, under a date that describes nothing anyone
+   * could have participated in.
+   */
+  .addOptionalParam("round", "Open this round id specifically, ignoring window preference", 0, types.int)
   .setAction(async (args, hre) => {
     const { ethers } = hre;
     const signers = await ethers.getSigners();
@@ -387,7 +412,7 @@ task("keeper", "Advances the round state machine (permissionless)")
 
       let acted: boolean;
       try {
-        acted = await advance(sable, Number(args.settleBatch));
+        acted = await advance(sable, Number(args.settleBatch), Number(args.round));
       } catch (error) {
         // A price rise between that check and the transaction lands here, and it is the same
         // non-event. Anything else rethrows — a genuine failure should still be loud.
