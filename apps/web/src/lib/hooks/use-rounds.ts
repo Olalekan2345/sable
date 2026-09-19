@@ -209,14 +209,46 @@ export function useRoundAggregates(round: RoundSummary | null) {
 }
 
 /** Loads every round, newest first. */
-export function useAllRounds() {
+/**
+ * A window of rounds, newest first.
+ *
+ * ## Why this is windowed rather than everything
+ *
+ * Three structs per round on a thirty-second interval is fine for a handful and ruinous for a
+ * calendar. Scheduling a month of twelve-hour rounds took the count past a hundred, which is
+ * over three hundred calls every thirty seconds — on the landing page, for every visitor,
+ * against endpoints that have rate-limited this deployment under far less. It degrades
+ * quietly, too: a throttled batch renders as "Not yet published" rather than an error, so the
+ * ledger just looks half-empty.
+ *
+ * ## Why it starts at the active round, not the newest
+ *
+ * Rounds are scheduled far in advance, so the highest ids are dozens of future windows nobody
+ * has reached yet. Walking down from `roundCount` puts those first: the landing page's "recent
+ * rounds" strip, which takes the first four, would have shown four rounds that have not
+ * happened. Anchoring at the active round means newest-first means *most recent real round*,
+ * which is what every caller was already assuming.
+ *
+ * Rounds beyond the window are reported as `upcoming` so a caller can say how many are
+ * scheduled without fetching any of them.
+ */
+export function useAllRounds(options?: { limit?: number }) {
   const sable = useSableContract();
-  const { roundCount } = useProtocolState();
+  const { roundCount, activeRoundId } = useProtocolState();
+
+  const limit = options?.limit ?? 24;
+
+  const total = Number(roundCount);
+  const active = Number(activeRoundId);
+
+  // The newest round worth showing: the open one, or the end of the calendar when idle.
+  const anchor = active > 0 ? active : total;
+  const upcoming = Math.max(total - anchor, 0);
 
   const ids = useMemo(() => {
-    const total = Number(roundCount);
-    return Array.from({ length: total }, (_, index) => total - index);
-  }, [roundCount]);
+    const count = Math.min(limit, anchor);
+    return Array.from({ length: count }, (_, index) => anchor - index);
+  }, [anchor, limit]);
 
   const enabled = Boolean(sable.address) && ids.length > 0;
 
@@ -228,7 +260,12 @@ export function useAllRounds() {
           { ...sable, functionName: "roundAggregates", args: [BigInt(id)] },
         ])
       : [],
-    query: { enabled, refetchInterval: 30_000 },
+    /*
+     * A completed round never changes again, so most of this window is immutable and the
+     * interval exists only for the one round still moving. `staleTime` stops a remount
+     * refetching what cannot have changed.
+     */
+    query: { enabled, refetchInterval: 30_000, staleTime: 15_000 },
   });
 
   const rounds = useMemo<RoundSummary[]>(() => {
@@ -252,7 +289,16 @@ export function useAllRounds() {
     });
   }, [data, ids]);
 
-  return { rounds, isLoading, error, refetch, total: Number(roundCount) };
+  return {
+    rounds,
+    isLoading,
+    error,
+    refetch,
+    total,
+    /** Scheduled beyond this window — a count, so nothing has to be fetched to report it. */
+    upcoming,
+    hasMore: ids.length < anchor,
+  };
 }
 
 /** The round currently accepting savings, if any. */

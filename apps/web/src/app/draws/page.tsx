@@ -9,6 +9,7 @@ import {
 } from "@sable/config";
 import Link from "next/link";
 
+import { Button } from "@/components/ui/button";
 import {
   Badge,
   Card,
@@ -18,6 +19,8 @@ import {
   Skeleton,
 } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
+import { useState } from "react";
+
 import { useAllRounds, useNow, useRoundAggregates, type RoundSummary } from "@/lib/hooks/use-rounds";
 import { useIsDeployed } from "@/lib/hooks/use-sable";
 
@@ -31,9 +34,19 @@ import { useIsDeployed } from "@/lib/hooks/use-sable";
  * relayer. Nothing here is cached from a server or precomputed — and no column exists for
  * participants, balances, modes, weights or winners.
  */
+const PAGE = 20;
+
 export default function DrawsPage() {
   const deployed = useIsDeployed();
-  const { rounds, isLoading } = useAllRounds();
+
+  /*
+   * Paged rather than everything at once. Each round costs three contract reads, and the
+   * calendar is scheduled a month ahead, so rendering it whole is several hundred calls on a
+   * thirty-second interval — enough to get throttled, and a throttled batch shows as "Not yet
+   * published" rather than an error, so the ledger quietly looks half-empty instead of broken.
+   */
+  const [limit, setLimit] = useState(PAGE);
+  const { rounds, isLoading, upcoming, hasMore, total } = useAllRounds({ limit });
 
   return (
     <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
@@ -42,6 +55,21 @@ export default function DrawsPage() {
         title="Every round, verifiable"
         description="Round configuration, prize totals and draw execution are public. Individual financial positions never are."
       />
+
+      {/*
+        Scheduled rounds are stated as a count rather than listed.
+        
+        The calendar runs a month ahead, so listing them would put dozens of windows nobody
+        has reached above every round that actually happened — and each would cost three reads
+        to say nothing. A line reports them for free.
+      */}
+      {upcoming > 0 ? (
+        <p className="mb-4 text-[13px] text-[var(--color-tertiary)]">
+          <span className="text-numeric text-[var(--color-secondary)]">{upcoming}</span> further
+          round{upcoming === 1 ? "" : "s"} scheduled ahead of this one. They appear here as each
+          opens.
+        </p>
+      ) : null}
 
       <Card className="overflow-hidden">
         {!deployed ? (
@@ -79,6 +107,17 @@ export default function DrawsPage() {
                 <LedgerRow key={round.id} round={round} />
               ))}
             </ul>
+
+            {hasMore ? (
+              <div className="border-t border-[var(--color-hairline)] px-7 py-5">
+                <Button variant="secondary" size="sm" onClick={() => setLimit((n) => n + PAGE)}>
+                  Show earlier rounds
+                </Button>
+                <span className="ml-4 text-[12px] text-[var(--color-tertiary)]">
+                  Showing {rounds.length} of {total} rounds
+                </span>
+              </div>
+            ) : null}
           </>
         )}
       </Card>
